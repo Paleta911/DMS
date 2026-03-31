@@ -57,6 +57,8 @@ tmp-*.bat
 tmp-*.txt
 **/tmp-*.py
 *.bak
+autopush.ps1
+autopush.log
 
 # Database backups (local)
 *.sql
