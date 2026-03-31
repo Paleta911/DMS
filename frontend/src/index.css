@@ -1,0 +1,167 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Sora:wght@400;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+  font-family: 'Space Grotesk', system-ui, sans-serif;
+  background-color: rgb(227 234 244);
+  color: rgb(11 18 32);
+  --color-ink: 12 17 22;
+  --color-paper: 245 242 235;
+  --color-mint: 93 214 184;
+  --color-ember: 255 138 91;
+  --color-steel: 39 49 59;
+  --color-bsm-citron: 148 186 33;
+  --color-bsm-matisse: 34 81 163;
+  --color-bsm-sanMarino: 69 110 166;
+  --color-bsm-catskillWhite: 227 234 244;
+  --color-bsm-rockBlue: 160 180 210;
+  --color-bsm-ming: 57 107 124;
+  --color-bsm-hippieGreen: 104 142 81;
+  --color-bsm-stTropaz: 40 87 154;
+  --color-brand-primary: 34 81 163;
+  --color-brand-primary2: 40 87 154;
+  --color-brand-accent: 148 186 33;
+  --color-brand-bg: 227 234 244;
+  --color-brand-surface: 255 255 255;
+  --color-brand-muted: 160 180 210;
+  --color-brand-text: 11 18 32;
+  --color-brand-text-muted: 68 80 102;
+  --color-brand-border: 160 180 210;
+  --color-overlay: 0 0 0;
+  --color-panel-strong: 15 23 42;
+  --color-panel-strong-text: 241 245 249;
+  --color-surface-soft: 238 242 248;
+  --color-success-surface: 236 253 245;
+  --color-success-border: 167 243 208;
+  --color-error-surface: 255 241 242;
+  --color-error-border: 254 205 211;
+  --color-info-surface: 255 255 255;
+  --color-info-border: 226 232 240;
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  background-color: rgb(10 16 25);
+  color: rgb(235 241 255);
+  --color-ink: 235 241 255;
+  --color-paper: 17 24 39;
+  --color-mint: 93 214 184;
+  --color-ember: 255 147 108;
+  --color-steel: 157 176 201;
+  --color-brand-primary: 125 164 255;
+  --color-brand-primary2: 98 142 252;
+  --color-brand-accent: 173 204 72;
+  --color-brand-bg: 16 24 37;
+  --color-brand-surface: 23 34 51;
+  --color-brand-muted: 85 102 133;
+  --color-brand-text: 235 241 255;
+  --color-brand-text-muted: 164 177 203;
+  --color-brand-border: 64 82 112;
+  --color-overlay: 2 6 23;
+  --color-panel-strong: 5 10 20;
+  --color-panel-strong-text: 226 232 240;
+  --color-surface-soft: 31 44 66;
+  --color-success-surface: 20 83 45;
+  --color-success-border: 34 197 94;
+  --color-error-surface: 127 29 29;
+  --color-error-border: 248 113 113;
+  --color-info-surface: 30 41 59;
+  --color-info-border: 71 85 105;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top left, rgb(var(--color-bsm-sanMarino) / 0.18), transparent 52%),
+    radial-gradient(circle at 20% 70%, rgb(var(--color-brand-accent) / 0.12), transparent 55%),
+    linear-gradient(
+      120deg,
+      rgb(var(--color-brand-bg)),
+      rgb(var(--color-surface-soft)) 55%,
+      rgb(var(--color-brand-bg))
+    );
+  color: rgb(var(--color-brand-text));
+  transition:
+    background-color 0.25s ease,
+    color 0.25s ease;
+}
+
+:focus-visible {
+  outline: 2px solid rgb(var(--color-brand-accent));
+  outline-offset: 2px;
+}
+
+.skip-link {
+  transform: translateY(-200%);
+  transition: transform 0.2s ease;
+}
+
+.skip-link:focus {
+  transform: translateY(0);
+}
+
+#root {
+  min-height: 100vh;
+}
+
+input, button, select, textarea {
+  font: inherit;
+}
+
+button,
+input,
+select,
+textarea {
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+@layer components {
+  .card {
+    @apply rounded-xl border border-brand-border bg-brand-surface/90 shadow-soft backdrop-blur;
+  }
+
+  .tag {
+    @apply inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide;
+  }
+
+  .table-head {
+    @apply text-xs uppercase tracking-widest text-brand-textMuted;
+  }
+
+  .surface-soft {
+    background-color: rgb(var(--color-surface-soft));
+  }
+
+  .panel-strong {
+    background-color: rgb(var(--color-panel-strong));
+    color: rgb(var(--color-panel-strong-text));
+  }
+
+  .toast-info {
+    background-color: rgb(var(--color-info-surface));
+    border-color: rgb(var(--color-info-border));
+  }
+
+  .toast-success {
+    background-color: rgb(var(--color-success-surface));
+    border-color: rgb(var(--color-success-border));
+  }
+
+  .toast-error {
+    background-color: rgb(var(--color-error-surface));
+    border-color: rgb(var(--color-error-border));
+  }
+}

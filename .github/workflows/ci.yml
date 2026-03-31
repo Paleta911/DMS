@@ -1,0 +1,111 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend-and-frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      NODE_ENV: development
+      DB_HOST: 127.0.0.1
+      DB_PORT: 1433
+      DB_USER: sa
+      DB_PASS: DmsDevPass!2026
+      DB_NAME: DMS
+      DB_ENCRYPT: false
+      DB_TRUST_CERT: true
+      MSSQL_SA_PASSWORD: DmsDevPass!2026
+      JWT_SECRET: ci_jwt_secret_2026_local_only
+      JWT_EXPIRES_IN: 1d
+      ES_NODE: http://127.0.0.1:9200
+      EMAIL_MODE: console
+      BOOTSTRAP_TOKEN: ci-bootstrap-token
+      LOG_FORMAT: json
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Start infra (SQL Server + Elasticsearch)
+        working-directory: backend
+        run: docker compose --profile db up -d sqlserver elasticsearch
+
+      - name: Wait for SQL Server
+        working-directory: backend
+        run: npm run infra:wait:db
+
+      - name: Wait for Elasticsearch
+        working-directory: backend
+        run: npm run infra:wait:search
+
+      - name: Check dependencies
+        working-directory: backend
+        run: npm run check:deps
+
+      - name: Backend strict validation
+        working-directory: backend
+        run: npm run test:ci:local:strict
+
+      - name: Export OpenAPI contract
+        working-directory: backend
+        run: npm run docs:openapi:export -- ./tmp/openapi.ci.json
+
+      - name: Verify OpenAPI snapshot
+        working-directory: backend
+        run: npm run docs:openapi:check
+
+      - name: Frontend build and tests
+        working-directory: frontend
+        run: |
+          npm run build
+          npm run test
+
+      - name: Upload OpenAPI artifact
+        if: always() && hashFiles('backend/tmp/openapi.ci.json') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: openapi-contract
+          path: backend/tmp/openapi.ci.json
+
+      - name: Collect Docker compose logs on failure
+        if: failure()
+        working-directory: backend
+        run: docker compose logs --tail=300 > tmp/docker-compose-ci.log
+
+      - name: Upload Docker compose logs
+        if: failure() && hashFiles('backend/tmp/docker-compose-ci.log') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-compose-logs
+          path: backend/tmp/docker-compose-ci.log
+
+      - name: Stop infra
+        if: always()
+        working-directory: backend
+        run: docker compose down -v

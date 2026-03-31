@@ -1,0 +1,194 @@
+name: Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Ambiente destino
+        required: true
+        type: choice
+        options:
+          - staging
+          - production
+      deploy:
+        description: Ejecutar despliegue por SSH despues de publicar imagenes
+        required: true
+        default: true
+        type: boolean
+
+concurrency:
+  group: deploy-${{ github.workflow }}-${{ github.event.inputs.environment }}
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  build-backend:
+    name: Build backend image
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment }}
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image_ref: ${{ steps.meta.outputs.versioned_ref }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Resolve backend metadata
+        id: meta
+        run: |
+          $ImageRef = "${{ env.REGISTRY }}/${{ github.repository_owner }}/dms-backend:${{ github.event.inputs.environment }}-${{ github.sha }}"
+          "versioned_ref=$ImageRef" >> $env:GITHUB_OUTPUT
+          "latest_ref=${{ env.REGISTRY }}/${{ github.repository_owner }}/dms-backend:${{ github.event.inputs.environment }}-latest" >> $env:GITHUB_OUTPUT
+        shell: pwsh
+
+      - name: Build and push backend
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          push: true
+          tags: |
+            ${{ steps.meta.outputs.versioned_ref }}
+            ${{ steps.meta.outputs.latest_ref }}
+
+  build-frontend:
+    name: Build frontend image
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment }}
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image_ref: ${{ steps.meta.outputs.versioned_ref }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Resolve frontend metadata
+        id: meta
+        run: |
+          $ImageRef = "${{ env.REGISTRY }}/${{ github.repository_owner }}/dms-frontend:${{ github.event.inputs.environment }}-${{ github.sha }}"
+          "versioned_ref=$ImageRef" >> $env:GITHUB_OUTPUT
+          "latest_ref=${{ env.REGISTRY }}/${{ github.repository_owner }}/dms-frontend:${{ github.event.inputs.environment }}-latest" >> $env:GITHUB_OUTPUT
+        shell: pwsh
+
+      - name: Resolve frontend API URL
+        id: frontend-env
+        run: |
+          $ApiUrl = "${{ secrets.FRONTEND_BUILD_API_URL }}"
+          if ([string]::IsNullOrWhiteSpace($ApiUrl)) {
+            $ApiUrl = "http://backend:3000"
+          }
+          $FeatureFlags = "${{ secrets.FRONTEND_BUILD_FEATURE_FLAGS }}"
+          if ([string]::IsNullOrWhiteSpace($FeatureFlags)) {
+            $FeatureFlags = "admin-analytics,notifications,saved-views,advanced-exports,dark-mode,i18n"
+          }
+          $DefaultLocale = "${{ secrets.FRONTEND_BUILD_DEFAULT_LOCALE }}"
+          if ([string]::IsNullOrWhiteSpace($DefaultLocale)) {
+            $DefaultLocale = "es"
+          }
+          "api_url=$ApiUrl" >> $env:GITHUB_OUTPUT
+          "feature_flags=$FeatureFlags" >> $env:GITHUB_OUTPUT
+          "default_locale=$DefaultLocale" >> $env:GITHUB_OUTPUT
+        shell: pwsh
+
+      - name: Build and push frontend
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: true
+          build-args: |
+            VITE_API_URL=${{ steps.frontend-env.outputs.api_url }}
+            VITE_FEATURE_FLAGS=${{ steps.frontend-env.outputs.feature_flags }}
+            VITE_DEFAULT_LOCALE=${{ steps.frontend-env.outputs.default_locale }}
+          tags: |
+            ${{ steps.meta.outputs.versioned_ref }}
+            ${{ steps.meta.outputs.latest_ref }}
+
+  validate-release-stack:
+    name: Validate release compose
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Prepare release env
+        run: |
+          cp deploy/.env.example deploy/.env
+          sed -i 's#^BACKEND_IMAGE=.*#BACKEND_IMAGE=ghcr.io/example/dms-backend:test#' deploy/.env
+          sed -i 's#^FRONTEND_IMAGE=.*#FRONTEND_IMAGE=ghcr.io/example/dms-frontend:test#' deploy/.env
+
+      - name: Validate compose syntax
+        working-directory: deploy
+        run: docker compose -f docker-compose.release.yml -f docker-compose.${{ github.event.inputs.environment }}.yml config
+
+  deploy:
+    name: Deploy via SSH
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment }}
+    needs:
+      - build-backend
+      - build-frontend
+      - validate-release-stack
+    if: ${{ github.event.inputs.deploy == 'true' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Copy deploy assets
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          source: "deploy/*"
+          target: ${{ secrets.DEPLOY_PATH }}
+          strip_components: 1
+
+      - name: Run deploy script
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+          DEPLOY_ENV_FILE: ${{ secrets.DEPLOY_ENV_FILE }}
+          GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+          BACKEND_IMAGE: ${{ needs.build-backend.outputs.image_ref }}
+          FRONTEND_IMAGE: ${{ needs.build-frontend.outputs.image_ref }}
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          envs: DEPLOY_PATH,DEPLOY_ENV_FILE,GHCR_USERNAME,GHCR_TOKEN,BACKEND_IMAGE,FRONTEND_IMAGE
+          script: |
+            set -e
+            cd "$DEPLOY_PATH"
+            cat > .env <<'EOF'
+            $DEPLOY_ENV_FILE
+            EOF
+            printf "\nBACKEND_IMAGE=%s\nFRONTEND_IMAGE=%s\n" "$BACKEND_IMAGE" "$FRONTEND_IMAGE" >> .env
+            echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin
+            docker compose -f docker-compose.release.yml -f docker-compose.${{ github.event.inputs.environment }}.yml pull
+            docker compose -f docker-compose.release.yml -f docker-compose.${{ github.event.inputs.environment }}.yml up -d sqlserver elasticsearch
+            docker compose -f docker-compose.release.yml -f docker-compose.${{ github.event.inputs.environment }}.yml run --rm backend npm run db:ensure
+            docker compose -f docker-compose.release.yml -f docker-compose.${{ github.event.inputs.environment }}.yml run --rm backend npm run db:migration:run:prod
+            docker compose -f docker-compose.release.yml -f docker-compose.${{ github.event.inputs.environment }}.yml up -d
+            docker compose -f docker-compose.release.yml -f docker-compose.${{ github.event.inputs.environment }}.yml exec -T backend node -e "fetch('http://127.0.0.1:3000/health').then((res) => { if (!res.ok) process.exit(1); }).catch(() => process.exit(1))"

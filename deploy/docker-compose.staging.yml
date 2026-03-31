@@ -1,0 +1,20 @@
+name: dms-staging
+
+services:
+  frontend:
+    environment:
+      DMS_ENVIRONMENT: staging
+    labels:
+      dms.environment: staging
+
+  backend:
+    environment:
+      FEATURE_FLAGS: ${FEATURE_FLAGS:-audit-json-export,admin-analytics,notifications,saved-views,advanced-exports,dark-mode,i18n}
+    labels:
+      dms.environment: staging
+
+  backend-worker:
+    environment:
+      FEATURE_FLAGS: ${FEATURE_FLAGS:-audit-json-export,admin-analytics,notifications,saved-views,advanced-exports,dark-mode,i18n}
+    labels:
+      dms.environment: staging

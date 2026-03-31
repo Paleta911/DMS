@@ -1,0 +1,166 @@
+services:
+  frontend:
+    image: ${FRONTEND_IMAGE}
+    restart: unless-stopped
+    ports:
+      - '${FRONTEND_PORT:-8080}:80'
+    depends_on:
+      backend:
+        condition: service_started
+
+  backend:
+    image: ${BACKEND_IMAGE}
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DB_HOST: sqlserver
+      DB_PORT: 1433
+      ES_NODE: http://elasticsearch:9200
+      UPLOAD_DIR: /app/runtime/uploads
+      BACKUP_DIR: /app/runtime/backups
+      LOG_FORMAT: json
+      LOG_FILE_PATH: /app/runtime/logs/backend.log
+      APP_RUNTIME_ROLE: web
+      FEATURE_FLAGS: ${FEATURE_FLAGS:-audit-json-export,admin-analytics,notifications,saved-views,advanced-exports,dark-mode,i18n}
+    ports:
+      - '${BACKEND_PORT:-3000}:3000'
+    volumes:
+      - uploads:/app/runtime/uploads
+      - backups:/app/runtime/backups
+      - backend_logs:/app/runtime/logs
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+
+  backend-worker:
+    image: ${BACKEND_IMAGE}
+    restart: unless-stopped
+    env_file:
+      - .env
+    command: ['node', 'dist/src/worker.js']
+    environment:
+      NODE_ENV: production
+      DB_HOST: sqlserver
+      DB_PORT: 1433
+      ES_NODE: http://elasticsearch:9200
+      LOG_FORMAT: json
+      LOG_FILE_PATH: /app/runtime/logs/worker.log
+      APP_RUNTIME_ROLE: worker
+      FEATURE_FLAGS: ${FEATURE_FLAGS:-audit-json-export,admin-analytics,notifications,saved-views,advanced-exports,dark-mode,i18n}
+    volumes:
+      - backend_logs:/app/runtime/logs
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    restart: unless-stopped
+    environment:
+      ACCEPT_EULA: Y
+      MSSQL_PID: ${MSSQL_PID:-Developer}
+      MSSQL_SA_PASSWORD: ${DB_PASS}
+    ports:
+      - '${DB_PORT_EXTERNAL:-1433}:1433'
+    volumes:
+      - sqlserver_data:/var/opt/mssql
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          '/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P "$${MSSQL_SA_PASSWORD}" -Q "SELECT 1" >/dev/null || exit 1',
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 40s
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.13.4
+    restart: unless-stopped
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: 'false'
+      ES_JAVA_OPTS: -Xms512m -Xmx512m
+    ports:
+      - '${ES_PORT_EXTERNAL:-9200}:9200'
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -fsS http://localhost:9200/_cluster/health >/dev/null || exit 1']
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+
+  prometheus:
+    profiles: ['observability']
+    image: prom/prometheus:v3.7.2
+    restart: unless-stopped
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./observability/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - '${PROMETHEUS_PORT:-9090}:9090'
+    depends_on:
+      backend:
+        condition: service_started
+
+  loki:
+    profiles: ['observability']
+    image: grafana/loki:3.5.8
+    restart: unless-stopped
+    command: -config.file=/etc/loki/local-config.yaml
+    volumes:
+      - ./observability/loki-config.yml:/etc/loki/local-config.yaml:ro
+      - loki_data:/loki
+    ports:
+      - '${LOKI_PORT:-3100}:3100'
+
+  promtail:
+    profiles: ['observability']
+    image: grafana/promtail:3.5.8
+    restart: unless-stopped
+    command: -config.file=/etc/promtail/config.yml
+    volumes:
+      - ./observability/promtail-config.yml:/etc/promtail/config.yml:ro
+      - backend_logs:/var/log/dms:ro
+    depends_on:
+      loki:
+        condition: service_started
+
+  grafana:
+    profiles: ['observability']
+    image: grafana/grafana:12.1.1
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+    ports:
+      - '${GRAFANA_PORT:-3001}:3000'
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      prometheus:
+        condition: service_started
+      loki:
+        condition: service_started
+
+volumes:
+  uploads:
+  backups:
+  backend_logs:
+  sqlserver_data:
+  elasticsearch_data:
+  prometheus_data:
+  loki_data:
+  grafana_data:

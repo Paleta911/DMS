@@ -1,0 +1,47 @@
+groups:
+  - name: dms-backend-alerts
+    rules:
+      - alert: DmsBackendDown
+        expr: up{job="dms-backend"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: Backend DMS fuera de linea
+          description: El target dms-backend no responde desde hace mas de 2 minutos.
+
+      - alert: DmsElasticDegraded
+        expr: dms_search_elastic_status < 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Elasticsearch degradado
+          description: El backend reporta que Elasticsearch no esta disponible o esta degradado.
+
+      - alert: DmsSearchQueueStalled
+        expr: dms_search_queue_oldest_job_age_ms > 300000
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: Cola de indexacion detenida
+          description: Existe al menos un trabajo de indexacion pendiente con mas de 5 minutos de antiguedad.
+
+      - alert: DmsSearchWorkerStopped
+        expr: dms_search_worker_running == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: Worker de indexacion detenido
+          description: El worker de indexacion no reporta actividad.
+
+      - alert: DmsHttp5xxSpike
+        expr: sum(rate(dms_http_requests_total{status_class="5xx"}[5m])) > 0.05
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: Incremento de errores 5xx
+          description: La API esta devolviendo un volumen anormal de errores 5xx durante los ultimos 10 minutos.

@@ -1,0 +1,9 @@
+P|Los anexos incluidos en este reporte reúnen los elementos gráficos que, por tamaño y nivel de detalle, se consultan mejor fuera del cuerpo principal del documento.
+H2|Anexo A. Arquitectura general del sistema
+FIG|ARCH
+CAP|Figura 1. Arquitectura general del sistema DMS SIG.
+SRC|Fuente: elaboración propia.
+H2|Anexo B. Modelo entidad-relación del sistema
+FIG|ERD
+CAP|Figura 2. Modelo entidad-relación general del sistema DMS SIG.
+SRC|Fuente: elaboración propia.

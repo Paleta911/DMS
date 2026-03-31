@@ -1,0 +1,20 @@
+name: dms-production
+
+services:
+  frontend:
+    environment:
+      DMS_ENVIRONMENT: production
+    labels:
+      dms.environment: production
+
+  backend:
+    environment:
+      FEATURE_FLAGS: ${FEATURE_FLAGS:-audit-json-export,admin-analytics,notifications,saved-views,advanced-exports,dark-mode,i18n}
+    labels:
+      dms.environment: production
+
+  backend-worker:
+    environment:
+      FEATURE_FLAGS: ${FEATURE_FLAGS:-audit-json-export,admin-analytics,notifications,saved-views,advanced-exports,dark-mode,i18n}
+    labels:
+      dms.environment: production
