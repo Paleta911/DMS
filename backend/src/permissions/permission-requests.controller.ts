@@ -1,4 +1,13 @@
-import { Body, Controller, Get, Post, Query, Req, UseGuards } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  Post,
+  Query,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
@@ -62,17 +71,11 @@ export class PermissionRequestsController {
     @Body() body: CreateAreaRequestDto,
     @Req() req: Request & { user?: { id?: number } },
   ) {
-    const userId = req.user?.id;
-    if (!userId) {
-      return null;
-    }
-    return this.requestsService.createAreaRequest({
-      userId,
-      areaCodes: body.areaCodes,
-      comment: body.comment,
-      ip: req.ip,
-      userAgent: req.headers['user-agent'] as string | undefined,
-    });
+    void body;
+    void req;
+    throw new BadRequestException(
+      'Las solicitudes de área ya no están disponibles',
+    );
   }
 
   @UseGuards(JwtAuthGuard)

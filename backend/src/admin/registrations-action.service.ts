@@ -11,6 +11,7 @@ import { DEFAULT_APPROVED_PERMISSIONS } from '../users/permissions';
 import { VerificationService } from '../auth/verification.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { UserAdminPolicyService } from '../users/user-admin-policy.service';
+import { UserLifecycleService } from '../users/user-lifecycle.service';
 
 @Injectable()
 export class RegistrationsActionService {
@@ -21,6 +22,7 @@ export class RegistrationsActionService {
     private readonly verificationService: VerificationService,
     private readonly auditLogService: AuditLogService,
     private readonly userAdminPolicyService: UserAdminPolicyService,
+    private readonly userLifecycleService: UserLifecycleService,
   ) {}
 
   async approve(params: {
@@ -106,6 +108,55 @@ export class RegistrationsActionService {
     });
   }
 
+  async restore(params: {
+    id: number;
+    adminId: number;
+    ip?: string;
+    userAgent?: string;
+  }) {
+    return this.dataSource.transaction(async (manager) => {
+      const userRepo = manager.getRepository(User);
+      const user = await userRepo.findOne({ where: { id: params.id } });
+      if (!user) {
+        throw new NotFoundException('Usuario no encontrado');
+      }
+      this.userAdminPolicyService.assertTargetIsMutableByAdmin(
+        user,
+        'No se puede restaurar admins',
+      );
+      if (user.status !== UserStatus.Rejected) {
+        throw new BadRequestException('Registro no está rechazado');
+      }
+
+      const restoredStatus = user.approvedAt
+        ? UserStatus.Approved
+        : user.verifiedAt
+          ? UserStatus.PendingApproval
+          : UserStatus.PendingVerification;
+
+      user.status = restoredStatus;
+      user.rejectedAt = null;
+      user.rejectedReason = null;
+      if (restoredStatus !== UserStatus.Approved) {
+        user.approvedAt = null;
+        user.approvedById = null;
+      }
+      await userRepo.save(user);
+
+      await this.auditLogService.log({
+        userId: params.adminId,
+        action: 'REG_RESTORED',
+        resourceType: 'auth',
+        resourceId: user.id,
+        meta: { email: user.email, restoredStatus },
+        ip: params.ip,
+        userAgent: params.userAgent,
+      }, manager);
+
+      return user;
+    });
+  }
+
   async resendCode(params: {
     id: number;
     adminId: number;
@@ -169,5 +220,23 @@ export class RegistrationsActionService {
 
       return user;
     });
+  }
+
+  async remove(params: {
+    id: number;
+    adminId: number;
+    ip?: string;
+    userAgent?: string;
+  }) {
+    return this.userLifecycleService.suspendUser(params);
+  }
+
+  async removePermanent(params: {
+    id: number;
+    adminId: number;
+    ip?: string;
+    userAgent?: string;
+  }) {
+    return this.userLifecycleService.permanentlyDeleteUser(params);
   }
 }

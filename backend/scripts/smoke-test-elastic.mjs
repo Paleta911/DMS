@@ -55,6 +55,41 @@ async function requestJson(url, options = {}) {
   return { res, data };
 }
 
+function unwrapListPayload(data) {
+  if (Array.isArray(data)) {
+    return data;
+  }
+  if (Array.isArray(data?.items)) {
+    return data.items;
+  }
+  return [];
+}
+
+function getSearchTotal(data) {
+  if (typeof data?.total === 'number') {
+    return data.total;
+  }
+  return data?.total?.value ?? 0;
+}
+
+function normalizeDocumentSearchFields(document) {
+  const q =
+    document?.nombre ??
+    document?.name ??
+    document?.codigo ??
+    null;
+  const documentTypeCode =
+    document?.documentTypeCode ??
+    document?.documentType?.code ??
+    null;
+  const areaCode =
+    (typeof document?.areaCode === 'string'
+      ? document.areaCode
+      : document?.areaCode?.code) ?? null;
+
+  return { q, documentTypeCode, areaCode };
+}
+
 async function fetchWithTimeout(url, timeoutMs, options) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -322,26 +357,54 @@ async function main() {
       await new Promise((resolve) => setTimeout(resolve, 1000));
     }
 
+    const documents = await requestJson(`${baseUrl}/documents?limit=10`, {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    assert(
+      documents.res.ok,
+      `[documents:list] failed: ${documents.res.status} ${JSON.stringify(
+        documents.data,
+      )}`,
+    );
+
+    const searchableDocument = unwrapListPayload(documents.data)
+      .map((item) => normalizeDocumentSearchFields(item))
+      .find(
+        (item) =>
+          typeof item.q === 'string' &&
+          item.q.trim().length > 0 &&
+          typeof item.documentTypeCode === 'string' &&
+          item.documentTypeCode.trim().length > 0 &&
+          typeof item.areaCode === 'string' &&
+          item.areaCode.trim().length > 0,
+      );
+
+    assert(
+      searchableDocument,
+      '[documents:list] no searchable document available for elastic smoke',
+    );
+
+    const searchParams = new URLSearchParams({
+      q: searchableDocument.q,
+      documentTypeCode: searchableDocument.documentTypeCode,
+      areaCode: searchableDocument.areaCode,
+    });
+
     let search;
     let searchTotal = 0;
     for (let attempt = 1; attempt <= 10; attempt += 1) {
-      search = await requestJson(
-        `${baseUrl}/search?q=PRO&documentTypeCode=PRO&areaCode=RC`,
-        {
-          method: 'GET',
-          headers: { Authorization: `Bearer ${token}` },
-        },
-      );
+      search = await requestJson(`${baseUrl}/search?${searchParams.toString()}`, {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${token}` },
+      });
       assert(search.res.ok, `[search] failed: ${search.res.status}`);
       console.log('[smoke:elastic] engine:', search.data?.engine);
       assert(
         search.data?.engine === 'elastic',
         `[search] expected engine elastic, got ${search.data?.engine}`,
       );
-      searchTotal =
-        typeof search.data?.total === 'number'
-          ? search.data.total
-          : search.data?.total?.value ?? 0;
+      searchTotal = getSearchTotal(search.data);
       if (searchTotal >= 1) {
         break;
       }

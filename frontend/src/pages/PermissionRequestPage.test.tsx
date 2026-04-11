@@ -117,12 +117,12 @@ describe('PermissionRequestPage', () => {
     expect(screen.getByText('Acceso denegado')).toBeInTheDocument();
   });
 
-  it('marca permisos y áreas ya activas o pendientes para evitar duplicados', async () => {
+  it('marca permisos ya activos o pendientes para evitar duplicados', async () => {
     renderWithProviders(<PermissionRequestPage />);
 
     expect(await screen.findByText('Tienes solicitudes pendientes')).toBeInTheDocument();
     expect(screen.getByText(/1 permiso\(s\) siguen en revisión/)).toBeInTheDocument();
-    expect(screen.getByText(/1 área\(s\) siguen en revisión/)).toBeInTheDocument();
+    expect(await screen.findByText('Subir documentos')).toBeInTheDocument();
 
     const grantedPermission = screen.getByText('Ver documentos (ya activo)').closest('label');
     expect(grantedPermission).not.toBeNull();
@@ -133,15 +133,5 @@ describe('PermissionRequestPage', () => {
     expect(pendingPermission).not.toBeNull();
     expect(within(pendingPermission as HTMLElement).getByRole('checkbox')).toBeChecked();
     expect(within(pendingPermission as HTMLElement).getByRole('checkbox')).toBeDisabled();
-
-    const grantedArea = screen.getByText('FA - Finanzas (ya activa)').closest('label');
-    expect(grantedArea).not.toBeNull();
-    expect(within(grantedArea as HTMLElement).getByRole('checkbox')).toBeChecked();
-    expect(within(grantedArea as HTMLElement).getByRole('checkbox')).toBeDisabled();
-
-    const pendingArea = screen.getByText('RC - Recursos Humanos (pendiente)').closest('label');
-    expect(pendingArea).not.toBeNull();
-    expect(within(pendingArea as HTMLElement).getByRole('checkbox')).toBeChecked();
-    expect(within(pendingArea as HTMLElement).getByRole('checkbox')).toBeDisabled();
   });
 });

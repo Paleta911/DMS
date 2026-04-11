@@ -1,65 +1,120 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import {
   adminAreaCodesList,
   adminDocumentTypesList,
   areaCodesCreate,
   areaCodesDelete,
+  areaCodesHardDelete,
   areaCodesUpdate,
   documentTypesCreate,
   documentTypesDelete,
+  documentTypesHardDelete,
   documentTypesUpdate,
 } from '../../api/endpoints/types';
 import { useAuth } from '../../auth/AuthContext';
 import { AccessDenied } from '../../components/AccessDenied';
 import { CatalogRecordCard } from '../../components/admin/CatalogRecordCard';
 import { ConfirmActionModal } from '../../components/admin/ConfirmActionModal';
-import { TextFieldModal } from '../../components/admin/TextFieldModal';
 import { FilterCard } from '../../components/layout/FilterCard';
 import { PageContainer } from '../../components/layout/PageContainer';
 import { PageHeader } from '../../components/layout/PageHeader';
 import { ResultsToolbar } from '../../components/layout/ResultsToolbar';
-import { SectionCard } from '../../components/layout/SectionCard';
 import { ResponsiveActions } from '../../components/layout/ResponsiveActions';
+import { SectionCard } from '../../components/layout/SectionCard';
 import { useToast } from '../../components/ToastProvider';
 import { Button } from '../../components/ui/Button';
 import { EmptyState } from '../../components/EmptyState';
 import { Input } from '../../components/ui/Input';
+import { Modal } from '../../components/ui/Modal';
 import { Select } from '../../components/ui/Select';
 import { Spinner } from '../../components/ui/Spinner';
 import { queryClient } from '../../app/queryClient';
 import { queryKeys } from '../../app/queryKeys';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
+import { useSavedViews } from '../../hooks/useSavedViews';
 import type { AreaCode, DocumentType } from '../../types/documents';
 import { getApiErrorMessage } from '../../utils/apiError';
 
-type EditingType = { id: number; nombreLargo: string } | null;
-type EditingArea = { id: number; nombre: string } | null;
-type StatusFilter = 'active' | 'all';
+type EditingType = { id: number; code: string; nombreLargo: string } | null;
+type EditingArea = { id: number; code: string; nombre: string } | null;
+type StatusFilter = 'active' | 'inactive' | 'all';
+
+type TypesAreasFilters = {
+  typeSearch: string;
+  typeStatus: StatusFilter;
+  typePage: number;
+  typeLimit: number;
+  areaSearch: string;
+  areaStatus: StatusFilter;
+  areaPage: number;
+  areaLimit: number;
+};
+
+const INITIAL_TYPES_AREAS_FILTERS: TypesAreasFilters = {
+  typeSearch: '',
+  typeStatus: 'active',
+  typePage: 1,
+  typeLimit: 10,
+  areaSearch: '',
+  areaStatus: 'active',
+  areaPage: 1,
+  areaLimit: 10,
+};
 
 function buildCatalogActionLabel(item: { activo?: boolean }) {
   return item.activo === false ? 'Reactivar' : 'Desactivar';
 }
 
 export default function TypesAreasPage() {
-  const { isAdmin } = useAuth();
+  const { user, isAdmin } = useAuth();
   const { notify } = useToast();
+  const { initialFilters, rememberLastUsed } = useSavedViews<TypesAreasFilters>({
+    storageKey: 'admin-types-areas-filters',
+    scope: user?.email ?? null,
+    fallback: INITIAL_TYPES_AREAS_FILTERS,
+  });
   const [typeForm, setTypeForm] = useState({ code: '', nombreLargo: '' });
   const [areaForm, setAreaForm] = useState({ code: '', nombre: '' });
   const [editingType, setEditingType] = useState<EditingType>(null);
   const [editingArea, setEditingArea] = useState<EditingArea>(null);
   const [pendingTypeToggle, setPendingTypeToggle] = useState<DocumentType | null>(null);
   const [pendingAreaToggle, setPendingAreaToggle] = useState<AreaCode | null>(null);
-  const [typeSearch, setTypeSearch] = useState('');
-  const [areaSearch, setAreaSearch] = useState('');
-  const [typeStatus, setTypeStatus] = useState<StatusFilter>('active');
-  const [areaStatus, setAreaStatus] = useState<StatusFilter>('active');
-  const [typePage, setTypePage] = useState(1);
-  const [areaPage, setAreaPage] = useState(1);
-  const [typeLimit, setTypeLimit] = useState(10);
-  const [areaLimit, setAreaLimit] = useState(10);
+  const [pendingTypeDelete, setPendingTypeDelete] = useState<DocumentType | null>(null);
+  const [pendingAreaDelete, setPendingAreaDelete] = useState<AreaCode | null>(null);
+  const [typeSearch, setTypeSearch] = useState(initialFilters.typeSearch);
+  const [areaSearch, setAreaSearch] = useState(initialFilters.areaSearch);
+  const [typeStatus, setTypeStatus] = useState<StatusFilter>(initialFilters.typeStatus);
+  const [areaStatus, setAreaStatus] = useState<StatusFilter>(initialFilters.areaStatus);
+  const [typePage, setTypePage] = useState(initialFilters.typePage);
+  const [areaPage, setAreaPage] = useState(initialFilters.areaPage);
+  const [typeLimit, setTypeLimit] = useState(initialFilters.typeLimit);
+  const [areaLimit, setAreaLimit] = useState(initialFilters.areaLimit);
   const debouncedTypeSearch = useDebouncedValue(typeSearch);
   const debouncedAreaSearch = useDebouncedValue(areaSearch);
+
+  useEffect(() => {
+    rememberLastUsed({
+      typeSearch,
+      typeStatus,
+      typePage,
+      typeLimit,
+      areaSearch,
+      areaStatus,
+      areaPage,
+      areaLimit,
+    });
+  }, [
+    areaLimit,
+    areaPage,
+    areaSearch,
+    areaStatus,
+    rememberLastUsed,
+    typeLimit,
+    typePage,
+    typeSearch,
+    typeStatus,
+  ]);
 
   const typesQuery = useQuery({
     queryKey: queryKeys.adminCatalogs.documentTypes({
@@ -72,6 +127,7 @@ export default function TypesAreasPage() {
       adminDocumentTypesList({
         q: debouncedTypeSearch.trim() || undefined,
         includeInactive: typeStatus === 'all',
+        status: typeStatus,
         page: typePage,
         limit: typeLimit,
       }),
@@ -89,6 +145,7 @@ export default function TypesAreasPage() {
       adminAreaCodesList({
         q: debouncedAreaSearch.trim() || undefined,
         includeInactive: areaStatus === 'all',
+        status: areaStatus,
         page: areaPage,
         limit: areaLimit,
       }),
@@ -129,10 +186,23 @@ export default function TypesAreasPage() {
   });
 
   const updateTypeMutation = useMutation({
-    mutationFn: (payload: { id: number; nombreLargo?: string; activo?: boolean }) =>
-      documentTypesUpdate(payload.id, payload),
-    onSuccess: async (updated) => {
-      notify(updated.activo === false ? 'Tipo desactivado' : 'Tipo actualizado', 'success');
+    mutationFn: ({
+      id,
+      ...changes
+    }: {
+      id: number;
+      code?: string;
+      nombreLargo?: string;
+      activo?: boolean;
+    }) => documentTypesUpdate(id, changes),
+    onSuccess: async (_updated, variables) => {
+      const message =
+        variables.activo === false
+          ? 'Tipo desactivado'
+          : variables.activo === true
+            ? 'Tipo reactivado'
+            : 'Tipo actualizado';
+      notify(message, 'success');
       setEditingType(null);
       setPendingTypeToggle(null);
       await refreshCatalogs();
@@ -143,10 +213,23 @@ export default function TypesAreasPage() {
   });
 
   const updateAreaMutation = useMutation({
-    mutationFn: (payload: { id: number; nombre?: string; activo?: boolean }) =>
-      areaCodesUpdate(payload.id, payload),
-    onSuccess: async (updated) => {
-      notify(updated.activo === false ? 'Área desactivada' : 'Área actualizada', 'success');
+    mutationFn: ({
+      id,
+      ...changes
+    }: {
+      id: number;
+      code?: string;
+      nombre?: string;
+      activo?: boolean;
+    }) => areaCodesUpdate(id, changes),
+    onSuccess: async (_updated, variables) => {
+      const message =
+        variables.activo === false
+          ? 'Área desactivada'
+          : variables.activo === true
+            ? 'Área reactivada'
+            : 'Área actualizada';
+      notify(message, 'success');
       setEditingArea(null);
       setPendingAreaToggle(null);
       await refreshCatalogs();
@@ -180,6 +263,30 @@ export default function TypesAreasPage() {
     },
   });
 
+  const hardDeleteTypeMutation = useMutation({
+    mutationFn: (id: number) => documentTypesHardDelete(id),
+    onSuccess: async () => {
+      notify('Tipo eliminado', 'success');
+      setPendingTypeDelete(null);
+      await refreshCatalogs();
+    },
+    onError: (error: any) => {
+      notify(getApiErrorMessage(error, 'No se pudo eliminar el tipo'), 'error');
+    },
+  });
+
+  const hardDeleteAreaMutation = useMutation({
+    mutationFn: (id: number) => areaCodesHardDelete(id),
+    onSuccess: async () => {
+      notify('Área eliminada', 'success');
+      setPendingAreaDelete(null);
+      await refreshCatalogs();
+    },
+    onError: (error: any) => {
+      notify(getApiErrorMessage(error, 'No se pudo eliminar el área'), 'error');
+    },
+  });
+
   if (!isAdmin) {
     return (
       <PageContainer>
@@ -197,25 +304,35 @@ export default function TypesAreasPage() {
     item: { id: number; activo?: boolean },
     onEdit: () => void,
     onToggle: () => void,
+    onDelete: () => void,
   ) => (
-    <div>
-      <div className="mb-2 text-xs uppercase tracking-[0.2em] text-brand-textMuted">
+    <div className="flex w-full flex-col items-center text-center">
+      <div className="mb-2 text-center text-xs uppercase tracking-[0.2em] text-brand-textMuted">
         Acciones
       </div>
-      <ResponsiveActions>
-        <Button variant="outline" className="w-full sm:w-auto" onClick={onEdit}>
-          Editar
-        </Button>
-        {item.activo === false ? (
-          <Button className="w-full sm:w-auto" onClick={onToggle}>
-            Reactivar
+      <div className="flex w-full justify-center">
+        <div className="flex w-full flex-col items-center gap-2 sm:w-auto">
+          <Button variant="outline" className="w-full sm:w-auto" onClick={onEdit}>
+            Editar
           </Button>
-        ) : (
-          <Button variant="danger" className="w-full sm:w-auto" onClick={onToggle}>
-            Desactivar
+          {item.activo === false ? (
+            <Button className="w-full sm:w-auto" onClick={onToggle}>
+              Reactivar
+            </Button>
+          ) : (
+            <Button variant="danger" className="w-full sm:w-auto" onClick={onToggle}>
+              Desactivar
+            </Button>
+          )}
+          <Button
+            variant="outline"
+            className="w-full border-ember/40 text-ember hover:bg-ember/10 sm:w-auto"
+            onClick={onDelete}
+          >
+            Eliminar
           </Button>
-        )}
-      </ResponsiveActions>
+        </div>
+      </div>
     </div>
   );
 
@@ -257,6 +374,21 @@ export default function TypesAreasPage() {
             <FilterCard
               className="mt-4"
               gridClassName="grid gap-3 md:grid-cols-3"
+              footer={
+                <ResponsiveActions>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setTypeSearch(INITIAL_TYPES_AREAS_FILTERS.typeSearch);
+                      setTypeStatus(INITIAL_TYPES_AREAS_FILTERS.typeStatus);
+                      setTypePage(INITIAL_TYPES_AREAS_FILTERS.typePage);
+                      setTypeLimit(INITIAL_TYPES_AREAS_FILTERS.typeLimit);
+                    }}
+                  >
+                    Limpiar filtros
+                  </Button>
+                </ResponsiveActions>
+              }
             >
               <Input
                 label="Buscar"
@@ -276,6 +408,7 @@ export default function TypesAreasPage() {
                 }}
               >
                 <option value="active">Solo activos</option>
+                <option value="inactive">Solo inactivos</option>
                 <option value="all">Activos e inactivos</option>
               </Select>
               <Select
@@ -341,11 +474,17 @@ export default function TypesAreasPage() {
                       ]}
                       actions={renderCatalogActions(
                         item,
-                        () => setEditingType({ id: item.id, nombreLargo: item.nombreLargo }),
+                        () =>
+                          setEditingType({
+                            id: item.id,
+                            code: item.code,
+                            nombreLargo: item.nombreLargo,
+                          }),
                         () =>
                           item.activo === false
                             ? updateTypeMutation.mutate({ id: item.id, activo: true })
                             : setPendingTypeToggle(item),
+                        () => setPendingTypeDelete(item),
                       )}
                     />
                   ))}
@@ -386,6 +525,21 @@ export default function TypesAreasPage() {
             <FilterCard
               className="mt-4"
               gridClassName="grid gap-3 md:grid-cols-3"
+              footer={
+                <ResponsiveActions>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setAreaSearch(INITIAL_TYPES_AREAS_FILTERS.areaSearch);
+                      setAreaStatus(INITIAL_TYPES_AREAS_FILTERS.areaStatus);
+                      setAreaPage(INITIAL_TYPES_AREAS_FILTERS.areaPage);
+                      setAreaLimit(INITIAL_TYPES_AREAS_FILTERS.areaLimit);
+                    }}
+                  >
+                    Limpiar filtros
+                  </Button>
+                </ResponsiveActions>
+              }
             >
               <Input
                 label="Buscar"
@@ -405,6 +559,7 @@ export default function TypesAreasPage() {
                 }}
               >
                 <option value="active">Solo activas</option>
+                <option value="inactive">Solo inactivas</option>
                 <option value="all">Activas e inactivas</option>
               </Select>
               <Select
@@ -470,11 +625,17 @@ export default function TypesAreasPage() {
                       ]}
                       actions={renderCatalogActions(
                         item,
-                        () => setEditingArea({ id: item.id, nombre: item.nombre }),
+                        () =>
+                          setEditingArea({
+                            id: item.id,
+                            code: item.code,
+                            nombre: item.nombre,
+                          }),
                         () =>
                           item.activo === false
                             ? updateAreaMutation.mutate({ id: item.id, activo: true })
                             : setPendingAreaToggle(item),
+                        () => setPendingAreaDelete(item),
                       )}
                     />
                   ))}
@@ -484,41 +645,97 @@ export default function TypesAreasPage() {
           </SectionCard>
         </div>
 
-        <TextFieldModal
+        <Modal
           open={Boolean(editingType)}
           title="Editar tipo de documento"
-          label="Nombre largo"
-          value={editingType?.nombreLargo ?? ''}
-          onChange={(value) =>
-            setEditingType((prev) => (prev ? { ...prev, nombreLargo: value } : prev))
-          }
           onClose={() => setEditingType(null)}
-          onConfirm={() =>
-            editingType &&
-            updateTypeMutation.mutate({
-              id: editingType.id,
-              nombreLargo: editingType.nombreLargo,
-            })
-          }
-          confirmDisabled={updateTypeMutation.isPending || !editingType?.nombreLargo.trim()}
-        />
+        >
+          <div className="grid gap-4">
+            <Input
+              label="Código"
+              value={editingType?.code ?? ''}
+              onChange={(event) =>
+                setEditingType((prev) =>
+                  prev ? { ...prev, code: event.target.value.toUpperCase() } : prev,
+                )
+              }
+            />
+            <Input
+              label="Nombre largo"
+              value={editingType?.nombreLargo ?? ''}
+              onChange={(event) =>
+                setEditingType((prev) =>
+                  prev ? { ...prev, nombreLargo: event.target.value } : prev,
+                )
+              }
+            />
+            <ResponsiveActions>
+              <Button variant="outline" onClick={() => setEditingType(null)}>
+                Cancelar
+              </Button>
+              <Button
+                onClick={() =>
+                  editingType &&
+                  updateTypeMutation.mutate({
+                    id: editingType.id,
+                    code: editingType.code,
+                    nombreLargo: editingType.nombreLargo,
+                  })
+                }
+                disabled={
+                  updateTypeMutation.isPending ||
+                  !editingType?.code.trim() ||
+                  !editingType?.nombreLargo.trim()
+                }
+              >
+                Guardar
+              </Button>
+            </ResponsiveActions>
+          </div>
+        </Modal>
 
-        <TextFieldModal
-          open={Boolean(editingArea)}
-          title="Editar área"
-          label="Nombre"
-          value={editingArea?.nombre ?? ''}
-          onChange={(value) => setEditingArea((prev) => (prev ? { ...prev, nombre: value } : prev))}
-          onClose={() => setEditingArea(null)}
-          onConfirm={() =>
-            editingArea &&
-            updateAreaMutation.mutate({
-              id: editingArea.id,
-              nombre: editingArea.nombre,
-            })
-          }
-          confirmDisabled={updateAreaMutation.isPending || !editingArea?.nombre.trim()}
-        />
+        <Modal open={Boolean(editingArea)} title="Editar área" onClose={() => setEditingArea(null)}>
+          <div className="grid gap-4">
+            <Input
+              label="Código"
+              value={editingArea?.code ?? ''}
+              onChange={(event) =>
+                setEditingArea((prev) =>
+                  prev ? { ...prev, code: event.target.value.toUpperCase() } : prev,
+                )
+              }
+            />
+            <Input
+              label="Nombre"
+              value={editingArea?.nombre ?? ''}
+              onChange={(event) =>
+                setEditingArea((prev) => (prev ? { ...prev, nombre: event.target.value } : prev))
+              }
+            />
+            <ResponsiveActions>
+              <Button variant="outline" onClick={() => setEditingArea(null)}>
+                Cancelar
+              </Button>
+              <Button
+                onClick={() =>
+                  editingArea &&
+                  updateAreaMutation.mutate({
+                    id: editingArea.id,
+                    code: editingArea.code,
+                    nombre: editingArea.nombre,
+                  })
+                }
+                disabled={
+                  updateAreaMutation.isPending ||
+                  !editingArea?.code.trim() ||
+                  !editingArea?.nombre.trim()
+                }
+              >
+                Guardar
+              </Button>
+            </ResponsiveActions>
+          </div>
+        </Modal>
 
         <ConfirmActionModal
           open={Boolean(pendingTypeToggle)}
@@ -535,6 +752,27 @@ export default function TypesAreasPage() {
         />
 
         <ConfirmActionModal
+          open={Boolean(pendingTypeDelete)}
+          title="Eliminar tipo de documento"
+          description={
+            pendingTypeDelete ? (
+              <>
+                Se eliminará definitivamente el tipo <strong>{pendingTypeDelete.code}</strong>. Los
+                documentos que lo usen quedarán sin tipo asignado.
+              </>
+            ) : (
+              ''
+            )
+          }
+          onClose={() => setPendingTypeDelete(null)}
+          onConfirm={() =>
+            pendingTypeDelete && hardDeleteTypeMutation.mutate(pendingTypeDelete.id)
+          }
+          confirmLabel="Eliminar"
+          confirmDisabled={hardDeleteTypeMutation.isPending}
+        />
+
+        <ConfirmActionModal
           open={Boolean(pendingAreaToggle)}
           title={`${buildCatalogActionLabel(pendingAreaToggle ?? { activo: true })} área`}
           description={
@@ -546,6 +784,25 @@ export default function TypesAreasPage() {
           onConfirm={() => pendingAreaToggle && deleteAreaMutation.mutate(pendingAreaToggle.id)}
           confirmLabel="Desactivar"
           confirmDisabled={deleteAreaMutation.isPending}
+        />
+
+        <ConfirmActionModal
+          open={Boolean(pendingAreaDelete)}
+          title="Eliminar área"
+          description={
+            pendingAreaDelete ? (
+              <>
+                Se eliminará definitivamente el área <strong>{pendingAreaDelete.code}</strong>. Los
+                documentos y usuarios que la tengan asignada perderán esa relación.
+              </>
+            ) : (
+              ''
+            )
+          }
+          onClose={() => setPendingAreaDelete(null)}
+          onConfirm={() => pendingAreaDelete && hardDeleteAreaMutation.mutate(pendingAreaDelete.id)}
+          confirmLabel="Eliminar"
+          confirmDisabled={hardDeleteAreaMutation.isPending}
         />
       </section>
     </PageContainer>

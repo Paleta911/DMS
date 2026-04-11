@@ -23,9 +23,19 @@ export function getSystemAccessBlockReason(
   user: Pick<AccessUser, 'status' | 'canAccess'>,
 ): AccessBlockReason | null {
   if (user.status !== UserStatus.Approved) {
+    const statusMessage =
+      user.status === UserStatus.PendingVerification
+        ? 'Correo pendiente de verificación'
+        : user.status === UserStatus.PendingApproval
+          ? 'Cuenta pendiente de aprobación por el administrador'
+          : user.status === UserStatus.Rejected
+            ? 'Registro rechazado'
+            : user.status === UserStatus.Deleted
+              ? 'Cuenta suspendida por el administrador'
+            : 'Acceso no disponible';
     return {
       reason: 'status',
-      message: 'Cuenta pendiente de aprobación',
+      message: statusMessage,
       status: user.status,
     };
   }

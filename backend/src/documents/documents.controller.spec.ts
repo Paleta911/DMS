@@ -170,6 +170,7 @@ describe('DocumentsController', () => {
         ocrApplied: false,
       }),
     );
+    expect(userScopeService.assertAreaAccess).not.toHaveBeenCalled();
   });
 
   it('permite reprocesar contenido de documentos como admin', async () => {

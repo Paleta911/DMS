@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { categoriesList } from '../api/endpoints/categories';
-import { areaCodesList, documentTypesList } from '../api/endpoints/types';
+import { areaCodesList, documentTypesList, publicAreaCodesList } from '../api/endpoints/types';
 import { queryKeys } from '../app/queryKeys';
 
 const catalogQueryOptions = {
@@ -29,6 +29,14 @@ export function useAreaCodesQuery() {
   return useQuery({
     queryKey: queryKeys.catalogs.areaCodes,
     queryFn: areaCodesList,
+    ...catalogQueryOptions,
+  });
+}
+
+export function usePublicAreaCodesQuery() {
+  return useQuery({
+    queryKey: [...queryKeys.catalogs.areaCodes, 'public'],
+    queryFn: publicAreaCodesList,
     ...catalogQueryOptions,
   });
 }

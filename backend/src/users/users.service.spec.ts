@@ -3,6 +3,8 @@ import { UserRole } from './user-role.enum';
 import { UserStatus } from './user-status.enum';
 import type { UsersQueryService } from './users-query.service';
 import type { UsersMutationService } from './users-mutation.service';
+import type { UserDeletionRegistryService } from './user-deletion-registry.service';
+import type { UserLifecycleService } from './user-lifecycle.service';
 
 describe('UsersService', () => {
   const queryService = {
@@ -24,11 +26,26 @@ describe('UsersService', () => {
     saveUser: jest.fn(),
   } as unknown as jest.Mocked<UsersMutationService>;
 
+  const deletionRegistryService = {
+    findByEmail: jest.fn(),
+  } as unknown as jest.Mocked<UserDeletionRegistryService>;
+
+  const lifecycleService = {
+    suspendUser: jest.fn(),
+    restoreDeletedUser: jest.fn(),
+    permanentlyDeleteUser: jest.fn(),
+  } as unknown as jest.Mocked<UserLifecycleService>;
+
   let service: UsersService;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    service = new UsersService(queryService, mutationService);
+    service = new UsersService(
+      queryService,
+      mutationService,
+      deletionRegistryService,
+      lifecycleService,
+    );
   });
 
   it('delegates queries and mutations to focused services', async () => {

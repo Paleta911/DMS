@@ -17,11 +17,13 @@ import { VerificationService } from './verification.service';
 import { AuthRegistrationService } from './auth-registration.service';
 import { AuthLoginService } from './auth-login.service';
 import { AuthEmailVerificationFlowService } from './auth-email-verification-flow.service';
+import { AreaCodesModule } from '../area-codes/area-codes.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([EmailVerification]),
     UsersModule,
+    AreaCodesModule,
     AuditLogModule,
     EmailModule,
     PassportModule,

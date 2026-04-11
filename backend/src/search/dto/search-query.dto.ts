@@ -1,5 +1,6 @@
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
+import { IsIn, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
+import { DocumentStatus } from '../../documents/document-status.enum';
 
 export class SearchQueryDto {
   @IsOptional()
@@ -17,6 +18,15 @@ export class SearchQueryDto {
   @IsOptional()
   @IsString()
   areaCode?: string;
+
+  @IsOptional()
+  @IsIn([
+    DocumentStatus.Draft,
+    DocumentStatus.InReview,
+    DocumentStatus.Approved,
+    DocumentStatus.Obsolete,
+  ])
+  status?: DocumentStatus;
 
   @IsOptional()
   @IsString()

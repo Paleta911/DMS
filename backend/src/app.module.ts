@@ -25,6 +25,7 @@ import { PermissionsModule } from './permissions/permissions.module';
 import { AdminModule } from './admin/admin.module';
 import { ObservabilityModule } from './observability/observability.module';
 import { PlatformModule } from './platform/platform.module';
+import { DocumentVisibilityModule } from './document-visibility/document-visibility.module';
 import { writeAppLog } from './common/logging.utils';
 import { assertSecurityConfig } from './common/security-config.utils';
 
@@ -61,7 +62,7 @@ const envValidationSchema = Joi.object({
   AUTH_LOGIN_LIMIT: Joi.number().integer().min(1).default(10),
   AUTH_LOGIN_TTL_SEC: Joi.number().integer().min(1).default(60),
   AUTH_LOGIN_BLOCK_AFTER: Joi.number().integer().min(3).default(5),
-  AUTH_LOGIN_BLOCK_SEC: Joi.number().integer().min(60).default(900),
+  AUTH_LOGIN_BLOCK_SEC: Joi.number().integer().min(60).default(300),
   AUTH_LOGIN_RESET_WINDOW_SEC: Joi.number().integer().min(60).default(3600),
   AUTH_REGISTER_LIMIT: Joi.number().integer().min(1).default(6),
   AUTH_REGISTER_TTL_SEC: Joi.number().integer().min(1).default(300),
@@ -232,6 +233,7 @@ const envValidationSchema = Joi.object({
     DocumentTypesModule,
     AreaCodesModule,
     SearchModule,
+    DocumentVisibilityModule,
     AuditLogModule,
     ObservabilityModule,
     PermissionsModule,

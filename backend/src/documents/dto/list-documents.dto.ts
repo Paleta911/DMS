@@ -1,5 +1,6 @@
 import { Type } from 'class-transformer';
 import { IsIn, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
+import { DocumentStatus } from '../document-status.enum';
 
 export class ListDocumentsDto {
   @IsOptional()
@@ -26,6 +27,23 @@ export class ListDocumentsDto {
   @IsOptional()
   @IsString()
   areaCode?: string;
+
+  @IsOptional()
+  @IsIn([
+    DocumentStatus.Draft,
+    DocumentStatus.InReview,
+    DocumentStatus.Approved,
+    DocumentStatus.Obsolete,
+  ])
+  status?: DocumentStatus;
+
+  @IsOptional()
+  @IsString()
+  from?: string;
+
+  @IsOptional()
+  @IsString()
+  to?: string;
 
   @IsOptional()
   @IsIn(['az', 'za'])

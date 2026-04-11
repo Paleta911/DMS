@@ -38,6 +38,7 @@ export type Document = {
   id: number;
   nombre: string;
   codigo?: string | null;
+  isInternal?: boolean;
   status: 'DRAFT' | 'IN_REVIEW' | 'APPROVED' | 'OBSOLETE';
   category?: Category | null;
   documentType?: DocumentType | null;
@@ -64,4 +65,12 @@ export type WorkflowApproval = {
 export type WorkflowResponse = {
   status: Document['status'];
   approvals: WorkflowApproval[];
+};
+
+export type DocumentVisibilityPolicy = {
+  draftVisibleToUsers: boolean;
+  inReviewVisibleToUsers: boolean;
+  approvedVisibleToUsers: boolean;
+  obsoleteVisibleToUsers: boolean;
+  updatedAt?: string | null;
 };

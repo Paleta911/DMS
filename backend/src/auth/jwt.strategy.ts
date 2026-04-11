@@ -1,8 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { UserRole } from '../users/user-role.enum';
 import { getRequiredEnv } from '../common/security-config.utils';
+import { UsersService } from '../users/users.service';
+import { getSystemAccessBlockReason } from '../users/user-access.policy';
 
 export interface JwtPayload {
   sub: number;
@@ -12,7 +14,7 @@ export interface JwtPayload {
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
-  constructor() {
+  constructor(private readonly usersService: UsersService) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
@@ -20,7 +22,22 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
   }
 
-  validate(payload: JwtPayload) {
-    return { id: payload.sub, email: payload.email, role: payload.role };
+  async validate(payload: JwtPayload) {
+    const user = await this.usersService.findById(payload.sub);
+    if (!user) {
+      const deletedRecord =
+        await this.usersService.findPermanentlyDeletedByEmail(payload.email);
+      if (deletedRecord) {
+        throw new UnauthorizedException('Cuenta eliminada por el administrador');
+      }
+      throw new UnauthorizedException('Sesion expirada. Inicia sesión nuevamente');
+    }
+
+    const accessBlock = getSystemAccessBlockReason(user);
+    if (accessBlock) {
+      throw new UnauthorizedException(accessBlock.message);
+    }
+
+    return { id: user.id, email: user.email, role: user.role };
   }
 }

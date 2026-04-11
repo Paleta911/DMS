@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
@@ -7,6 +7,7 @@ import {
   adminCategoriesList,
   categoriesCreate,
   categoriesDelete,
+  categoriesHardDelete,
   categoriesUpdate,
 } from '../../api/endpoints/categories';
 import { CatalogRecordCard } from '../../components/admin/CatalogRecordCard';
@@ -30,6 +31,7 @@ import { queryClient } from '../../app/queryClient';
 import { invalidateDocumentListQueries } from '../../app/queryInvalidation';
 import { queryKeys } from '../../app/queryKeys';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
+import { useSavedViews } from '../../hooks/useSavedViews';
 import type { Category } from '../../types/documents';
 import { getApiErrorMessage } from '../../utils/apiError';
 
@@ -39,22 +41,51 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>;
 
-type StatusFilter = 'active' | 'all';
+type StatusFilter = 'active' | 'inactive' | 'all';
+
+type CategoryFilters = {
+  search: string;
+  statusFilter: StatusFilter;
+  page: number;
+  limit: number;
+};
+
+const INITIAL_CATEGORY_FILTERS: CategoryFilters = {
+  search: '',
+  statusFilter: 'active',
+  page: 1,
+  limit: 12,
+};
 
 function buildCategoryActionLabel(category: Category) {
   return category.activo === false ? 'Reactivar' : 'Desactivar';
 }
 
 export default function CategoriesPage() {
-  const { isAdmin } = useAuth();
+  const { user, isAdmin } = useAuth();
   const { notify } = useToast();
+  const { initialFilters, rememberLastUsed } = useSavedViews<CategoryFilters>({
+    storageKey: 'admin-categories-filters',
+    scope: user?.email ?? null,
+    fallback: INITIAL_CATEGORY_FILTERS,
+  });
   const [editing, setEditing] = useState<Category | null>(null);
   const [pendingToggle, setPendingToggle] = useState<Category | null>(null);
-  const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('active');
-  const [page, setPage] = useState(1);
-  const [limit, setLimit] = useState(12);
+  const [pendingDelete, setPendingDelete] = useState<Category | null>(null);
+  const [search, setSearch] = useState(initialFilters.search);
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>(initialFilters.statusFilter);
+  const [page, setPage] = useState(initialFilters.page);
+  const [limit, setLimit] = useState(initialFilters.limit);
   const debouncedSearch = useDebouncedValue(search);
+
+  useEffect(() => {
+    rememberLastUsed({
+      search,
+      statusFilter,
+      page,
+      limit,
+    });
+  }, [limit, page, rememberLastUsed, search, statusFilter]);
 
   const categoriesQuery = useQuery({
     queryKey: queryKeys.adminCatalogs.categories({
@@ -67,6 +98,7 @@ export default function CategoriesPage() {
       adminCategoriesList({
         q: debouncedSearch.trim() || undefined,
         includeInactive: statusFilter === 'all',
+        status: statusFilter,
         page,
         limit,
       }),
@@ -91,13 +123,16 @@ export default function CategoriesPage() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: (payload: { id: number; nombre?: string; activo?: boolean }) =>
-      categoriesUpdate(payload.id, payload),
-    onSuccess: (updated) => {
-      notify(
-        updated.activo === false ? 'Categoría desactivada' : 'Categoría actualizada',
-        'success',
-      );
+    mutationFn: ({ id, ...changes }: { id: number; nombre?: string; activo?: boolean }) =>
+      categoriesUpdate(id, changes),
+    onSuccess: (_updated, variables) => {
+      const message =
+        variables.activo === false
+          ? 'Categoría desactivada'
+          : variables.activo === true
+            ? 'Categoría reactivada'
+            : 'Categoría actualizada';
+      notify(message, 'success');
       setEditing(null);
       setPendingToggle(null);
       queryClient.invalidateQueries({ queryKey: queryKeys.catalogs.categories });
@@ -120,6 +155,20 @@ export default function CategoriesPage() {
     },
     onError: (error: any) => {
       notify(getApiErrorMessage(error, 'Error al desactivar categoría'), 'error');
+    },
+  });
+
+  const hardDeleteMutation = useMutation({
+    mutationFn: (id: number) => categoriesHardDelete(id),
+    onSuccess: () => {
+      notify('Categoría eliminada', 'success');
+      setPendingDelete(null);
+      queryClient.invalidateQueries({ queryKey: queryKeys.catalogs.categories });
+      queryClient.invalidateQueries({ queryKey: ['admin-categories'] });
+      invalidateDocumentListQueries(queryClient);
+    },
+    onError: (error: any) => {
+      notify(getApiErrorMessage(error, 'Error al eliminar categoría'), 'error');
     },
   });
 
@@ -175,10 +224,10 @@ export default function CategoriesPage() {
               <Button
                 variant="outline"
                 onClick={() => {
-                  setSearch('');
-                  setStatusFilter('active');
-                  setPage(1);
-                  setLimit(12);
+                  setSearch(INITIAL_CATEGORY_FILTERS.search);
+                  setStatusFilter(INITIAL_CATEGORY_FILTERS.statusFilter);
+                  setPage(INITIAL_CATEGORY_FILTERS.page);
+                  setLimit(INITIAL_CATEGORY_FILTERS.limit);
                 }}
               >
                 Limpiar filtros
@@ -204,6 +253,7 @@ export default function CategoriesPage() {
             }}
           >
             <option value="active">Solo activas</option>
+            <option value="inactive">Solo inactivas</option>
             <option value="all">Activas e inactivas</option>
           </Select>
           <Select
@@ -288,6 +338,13 @@ export default function CategoriesPage() {
                           Desactivar
                         </Button>
                       )}
+                      <Button
+                        variant="outline"
+                        className="w-full border-ember/40 text-ember hover:bg-ember/10"
+                        onClick={() => setPendingDelete(category)}
+                      >
+                        Eliminar
+                      </Button>
                     </div>
                   }
                 />
@@ -337,6 +394,28 @@ export default function CategoriesPage() {
           confirmLabel={buildCategoryActionLabel(pendingToggle ?? { id: 0, nombre: '', activo: true })}
           confirmVariant={pendingToggle?.activo === false ? 'primary' : 'danger'}
           confirmDisabled={deleteMutation.isPending || updateMutation.isPending}
+        />
+
+        <ConfirmActionModal
+          open={Boolean(pendingDelete)}
+          title="Eliminar categoría"
+          description={
+            pendingDelete ? (
+              <>
+                Se eliminará definitivamente la categoría <strong>{pendingDelete.nombre}</strong>.
+                Los documentos que la usen quedarán sin categoría asignada.
+              </>
+            ) : (
+              ''
+            )
+          }
+          onClose={() => setPendingDelete(null)}
+          onConfirm={() => {
+            if (!pendingDelete) return;
+            hardDeleteMutation.mutate(pendingDelete.id);
+          }}
+          confirmLabel="Eliminar"
+          confirmDisabled={hardDeleteMutation.isPending}
         />
       </section>
     </PageContainer>

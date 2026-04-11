@@ -2,8 +2,8 @@ import { expect, Page } from '@playwright/test';
 
 export async function loginThroughUi(page: Page, email: string, password: string) {
   await page.goto('/login');
-  await page.getByLabel('Correo').fill(email);
-  await page.getByLabel('Contraseña').fill(password);
+  await page.getByLabel(/^Correo$/).fill(email);
+  await page.locator('input[name="password"]').fill(password);
   await page.getByRole('button', { name: 'Ingresar' }).click();
 }
 

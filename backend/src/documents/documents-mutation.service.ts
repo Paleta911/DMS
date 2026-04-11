@@ -41,6 +41,8 @@ export class DocumentsMutationService {
     originalName: string;
     comentario?: string;
     categoryId?: number;
+    isInternal?: boolean;
+    documentId?: number;
     documentTypeCode?: string;
     areaCode?: string;
     consecutivo?: number;
@@ -51,78 +53,28 @@ export class DocumentsMutationService {
     ocrPageCount?: number | null;
   }) {
     const nombre = params.nombreDocumento.trim();
-    let document: Document | null = null;
-    let documentType: DocumentType | null = null;
-    let areaCode: AreaCode | null = null;
+    const uploadedBy = await this.userRepo.findOne({
+      where: { id: params.uploadedById },
+    });
 
-    const hasType = Boolean(params.documentTypeCode);
-    const hasArea = Boolean(params.areaCode);
+    let document = params.documentId
+      ? await this.documentRepo.findOne({
+          where: { id: params.documentId },
+          relations: ['category', 'documentType', 'areaCode', 'approvals'],
+        })
+      : null;
 
-    if (hasType !== hasArea) {
-      throw new BadRequestException(
-        'documentTypeCode y areaCode deben enviarse juntos',
-      );
+    if (params.documentId && !document) {
+      throw new NotFoundException('Documento no encontrado');
     }
 
-    if (hasType && hasArea) {
-      documentType = await this.documentTypeRepo.findOne({
-        where: { code: params.documentTypeCode?.toUpperCase() },
-      });
-      areaCode = await this.areaCodeRepo.findOne({
-        where: { code: params.areaCode?.toUpperCase() },
-      });
-      if (!documentType || !areaCode) {
-        throw new BadRequestException('Tipo de documento o area invalida');
-      }
-    } else {
-      document = await this.documentRepo.findOne({
-        where: { nombre },
-        relations: ['category', 'documentType', 'areaCode', 'approvals'],
-      });
-    }
-
-    let codigo: string | null = null;
-    let consecutivo: number | null = null;
-    if (documentType && areaCode) {
-      if (params.consecutivo) {
-        consecutivo = params.consecutivo;
-      } else {
-        consecutivo = await this.getNextConsecutivo(documentType.id, areaCode.id);
-      }
-
-      codigo = `${documentType.code}-${areaCode.code}-${String(
-        consecutivo,
-      ).padStart(2, '0')}`;
-
-      document = await this.documentRepo.findOne({
-        where: { codigo },
-        relations: ['category', 'documentType', 'areaCode', 'approvals'],
-      });
-      if (document && !params.consecutivo) {
-        let attempts = 0;
-        while (document && attempts < 20) {
-          consecutivo += 1;
-          codigo = `${documentType.code}-${areaCode.code}-${String(
-            consecutivo,
-          ).padStart(2, '0')}`;
-          document = await this.documentRepo.findOne({
-            where: { codigo },
-            relations: ['category', 'documentType', 'areaCode', 'approvals'],
-          });
-          attempts += 1;
-        }
-        if (document) {
-          throw new BadRequestException(
-            'No se pudo asignar un consecutivo disponible',
-          );
-        }
-      }
-    }
+    const isVersionUpload = Boolean(document);
 
     if (!document) {
       document = this.documentRepo.create({
         nombre,
         status: DocumentStatus.Draft,
+        isInternal: Boolean(params.isInternal),
       });
     }
 
@@ -135,47 +87,23 @@ export class DocumentsMutationService {
       }
     }
 
-    if (documentType && areaCode && codigo && consecutivo) {
-      document.documentType = documentType;
-      document.areaCode = areaCode;
-      document.consecutivo = consecutivo;
-      document.codigo = codigo;
-    }
-
-    const uploadedBy = await this.userRepo.findOne({
-      where: { id: params.uploadedById },
-    });
-
     if (!document.createdBy && uploadedBy) {
       document.createdBy = uploadedBy;
     }
 
-    const wasApproved = document.status === DocumentStatus.Approved;
-    let saveAttempts = 0;
-    while (true) {
-      try {
-        document = await this.documentRepo.save(document);
-        break;
-      } catch (error) {
-        if (
-          documentType &&
-          areaCode &&
-          !params.consecutivo &&
-          this.isDuplicateCodigoError(error) &&
-          saveAttempts < 3
-        ) {
-          saveAttempts += 1;
-          consecutivo = await this.getNextConsecutivo(documentType.id, areaCode.id);
-          codigo = `${documentType.code}-${areaCode.code}-${String(
-            consecutivo,
-          ).padStart(2, '0')}`;
-          document.consecutivo = consecutivo;
-          document.codigo = codigo;
-          continue;
-        }
-        throw error;
-      }
+    if (!isVersionUpload) {
+      await this.applyDocumentIdentity(document, {
+        isInternal: Boolean(params.isInternal),
+        documentTypeCode: params.documentTypeCode,
+        areaCode: params.areaCode,
+        consecutivo: params.consecutivo,
+      });
+    } else if (document.isInternal) {
+      this.assertExistingInternalDocument(document);
     }
+
+    const wasApproved = document.status === DocumentStatus.Approved;
+    document = await this.saveDocument(document);
 
     const version = this.versionRepo.create({
       storedName: params.storedName,
@@ -212,6 +140,7 @@ export class DocumentsMutationService {
     id: number,
     nombreDocumento?: string,
     categoryId?: number | null,
+    isInternal?: boolean,
     documentTypeCode?: string,
     areaCodeValue?: string,
     consecutivoValue?: number | null,
@@ -240,20 +169,46 @@ export class DocumentsMutationService {
       document.category = category;
     }
 
-    const shouldUpdateCode =
+    const shouldUpdateIdentity =
+      isInternal !== undefined ||
       documentTypeCode !== undefined ||
       areaCodeValue !== undefined ||
       consecutivoValue !== undefined;
 
-    if (shouldUpdateCode) {
-      const typeCode =
-        documentTypeCode?.toUpperCase() ?? document.documentType?.code;
-      const areaCodeCode =
-        areaCodeValue?.toUpperCase() ?? document.areaCode?.code;
+    if (shouldUpdateIdentity) {
+      await this.applyDocumentIdentity(document, {
+        isInternal: isInternal ?? document.isInternal,
+        documentTypeCode,
+        areaCode: areaCodeValue,
+        consecutivo: consecutivoValue,
+      });
+    }
 
-      if (!typeCode || !areaCodeCode) {
+    const saved = await this.saveDocument(document);
+    this.searchService.enqueueIndexDocument(saved.id);
+    return saved;
+  }
+
+  private async applyDocumentIdentity(
+    document: Document,
+    params: {
+      isInternal: boolean;
+      documentTypeCode?: string;
+      areaCode?: string;
+      consecutivo?: number | null;
+    },
+  ) {
+    if (params.isInternal) {
+      const typeCode = params.documentTypeCode?.trim().toUpperCase();
+      const areaCodeValue = params.areaCode?.trim().toUpperCase();
+      const consecutivo =
+        params.consecutivo !== undefined
+          ? params.consecutivo
+          : document.consecutivo ?? null;
+
+      if (!typeCode || !areaCodeValue || !consecutivo) {
         throw new BadRequestException(
-          'documentTypeCode y areaCode requeridos para documentos SIG',
+          'Tipo, área y consecutivo son requeridos para documentos internos',
         );
       }
 
@@ -261,103 +216,93 @@ export class DocumentsMutationService {
         where: { code: typeCode },
       });
       const areaCode = await this.areaCodeRepo.findOne({
-        where: { code: areaCodeCode },
+        where: { code: areaCodeValue },
       });
 
       if (!documentType || !areaCode) {
         throw new BadRequestException('Tipo de documento o area invalida');
       }
 
-      let consecutivo = document.consecutivo ?? null;
-      if (consecutivoValue !== undefined) {
-        consecutivo = consecutivoValue;
-      }
+      const codigo = this.buildCodigo(documentType.code, areaCode.code, consecutivo);
+      await this.ensureCodigoAvailable(codigo, document.id);
 
-      if (!consecutivo) {
-        consecutivo = await this.getNextConsecutivo(documentType.id, areaCode.id);
-      }
-
-      let codigo = `${documentType.code}-${areaCode.code}-${String(
-        consecutivo,
-      ).padStart(2, '0')}`;
-
-      let existing = await this.documentRepo.findOne({
-        where: { codigo },
-      });
-      if (existing && existing.id !== document.id) {
-        const isManualConsecutivo =
-          consecutivoValue !== undefined && consecutivoValue !== null;
-        if (isManualConsecutivo) {
-          throw new BadRequestException('Codigo ya existe');
-        }
-        let attempts = 0;
-        while (existing && existing.id !== document.id && attempts < 20) {
-          consecutivo += 1;
-          codigo = `${documentType.code}-${areaCode.code}-${String(
-            consecutivo,
-          ).padStart(2, '0')}`;
-          existing = await this.documentRepo.findOne({ where: { codigo } });
-          attempts += 1;
-        }
-        if (existing && existing.id !== document.id) {
-          throw new BadRequestException(
-            'No se pudo asignar un consecutivo disponible',
-          );
-        }
-      }
-
+      document.isInternal = true;
       document.documentType = documentType;
       document.areaCode = areaCode;
       document.consecutivo = consecutivo;
       document.codigo = codigo;
+      return;
     }
 
-    const canRetryConsecutivo =
-      shouldUpdateCode &&
-      (consecutivoValue === undefined || consecutivoValue === null);
-    let saved: Document | null = null;
-    let updateAttempts = 0;
-    while (true) {
-      try {
-        saved = await this.documentRepo.save(document);
-        break;
-      } catch (error) {
-        if (
-          canRetryConsecutivo &&
-          document.documentType &&
-          document.areaCode &&
-          this.isDuplicateCodigoError(error) &&
-          updateAttempts < 3
-        ) {
-          updateAttempts += 1;
-          const nextConsecutivo = await this.getNextConsecutivo(
-            document.documentType.id,
-            document.areaCode.id,
-          );
-          document.consecutivo = nextConsecutivo;
-          document.codigo = `${document.documentType.code}-${document.areaCode.code}-${String(
-            nextConsecutivo,
-          ).padStart(2, '0')}`;
-          continue;
+    if (params.documentTypeCode) {
+      throw new BadRequestException(
+        'Solo los documentos internos pueden definir tipo',
+      );
+    }
+
+    if (params.consecutivo !== undefined && params.consecutivo !== null) {
+      throw new BadRequestException(
+        'Solo los documentos internos pueden definir consecutivo',
+      );
+    }
+
+    let areaCode: AreaCode | null = document.areaCode ?? null;
+    if (params.areaCode !== undefined) {
+      const normalizedAreaCode = params.areaCode.trim().toUpperCase();
+      if (!normalizedAreaCode) {
+        areaCode = null;
+      } else {
+        areaCode = await this.areaCodeRepo.findOne({
+          where: { code: normalizedAreaCode },
+        });
+        if (!areaCode) {
+          throw new BadRequestException('Area invalida');
         }
-        throw error;
       }
     }
-    if (!saved) {
-      throw new BadRequestException('No se pudo guardar el documento');
-    }
-    this.searchService.enqueueIndexDocument(saved.id);
-    return saved;
+
+    document.isInternal = false;
+    document.documentType = null;
+    document.areaCode = areaCode;
+    document.consecutivo = null;
+    document.codigo = null;
   }
 
-  private async getNextConsecutivo(documentTypeId: number, areaCodeId: number) {
-    const raw = await this.documentRepo
-      .createQueryBuilder('document')
-      .select('MAX(document.consecutivo)', 'max')
-      .where('document.documentTypeId = :dt', { dt: documentTypeId })
-      .andWhere('document.areaCodeId = :ac', { ac: areaCodeId })
-      .getRawOne<{ max?: number }>();
-    return Number(raw?.max ?? 0) + 1;
+  private assertExistingInternalDocument(document: Document) {
+    if (
+      !document.documentType ||
+      !document.areaCode ||
+      !document.consecutivo ||
+      !document.codigo
+    ) {
+      throw new BadRequestException(
+        'El documento interno no tiene una configuracion valida para nueva version',
+      );
+    }
+  }
+
+  private async ensureCodigoAvailable(codigo: string, currentDocumentId?: number) {
+    const existing = await this.documentRepo.findOne({
+      where: { codigo },
+    });
+    if (existing && existing.id !== currentDocumentId) {
+      throw new BadRequestException('Ya existe un documento con ese código');
+    }
+  }
+
+  private async saveDocument(document: Document) {
+    try {
+      return await this.documentRepo.save(document);
+    } catch (error) {
+      if (document.codigo && this.isDuplicateCodigoError(error)) {
+        throw new BadRequestException('Ya existe un documento con ese código');
+      }
+      throw error;
+    }
+  }
+
+  private buildCodigo(typeCode: string, areaCode: string, consecutivo: number) {
+    return `CEP-${typeCode}-${areaCode}-${String(consecutivo).padStart(2, '0')}`;
   }
 
   private isDuplicateCodigoError(error: unknown) {

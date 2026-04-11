@@ -27,7 +27,7 @@ describe('user-access.policy', () => {
     });
     expect(result).toEqual({
       reason: 'status',
-      message: 'Cuenta pendiente de aprobación',
+      message: 'Cuenta pendiente de aprobación por el administrador',
       status: UserStatus.PendingApproval,
     });
   });

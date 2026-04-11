@@ -4,4 +4,4 @@ export const PASSWORD_POLICY_REGEX =
   /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[^\s]+$/;
 
 export const PASSWORD_POLICY_MESSAGE =
-  'La contraseña debe tener al menos 8 caracteres e incluir mayúscula, minúscula y número';
+  'Debe tener mínimo 8 caracteres e incluir mayúscula, minúscula y número';

@@ -1,5 +1,10 @@
 import { http } from '../http';
-import type { Document, DocumentDetail, WorkflowResponse } from '../../types/documents';
+import type {
+  Document,
+  DocumentDetail,
+  DocumentVisibilityPolicy,
+  WorkflowResponse,
+} from '../../types/documents';
 
 type DocumentsResponse =
   | Document[]
@@ -16,6 +21,9 @@ export type DocumentsListParams = {
   categoryId?: string;
   documentTypeCode?: string;
   areaCode?: string;
+  status?: Document['status'] | '';
+  from?: string;
+  to?: string;
   sortByName?: 'az' | 'za' | '';
 };
 
@@ -26,6 +34,9 @@ export async function documentsList(params?: DocumentsListParams) {
     categoryId: params?.categoryId || undefined,
     documentTypeCode: params?.documentTypeCode || undefined,
     areaCode: params?.areaCode || undefined,
+    status: params?.status || undefined,
+    from: params?.from || undefined,
+    to: params?.to || undefined,
     sortByName: params?.sortByName || undefined,
   };
   const { data } = await http.get<DocumentsResponse>('/documents', {
@@ -69,6 +80,7 @@ export async function updateDocument(
   payload: {
     nombreDocumento?: string;
     categoryId?: number | null;
+    isInternal?: boolean;
     documentTypeCode?: string;
     areaCode?: string;
     consecutivo?: number | null;
@@ -101,4 +113,19 @@ export async function workflowApprove(id: number, payload: { decision: 'APPROVED
 export async function workflowObsolete(id: number) {
   const { data } = await http.post(`/documents/${id}/obsolete`);
   return data as WorkflowResponse;
+}
+
+export async function getDocumentVisibilityPolicy() {
+  const { data } = await http.get<DocumentVisibilityPolicy>('/document-visibility');
+  return data;
+}
+
+export async function updateDocumentVisibilityPolicy(
+  payload: Partial<Omit<DocumentVisibilityPolicy, 'updatedAt'>>,
+) {
+  const { data } = await http.patch<DocumentVisibilityPolicy>(
+    '/document-visibility',
+    payload,
+  );
+  return data;
 }

@@ -22,6 +22,7 @@ import { DocumentsQueryService } from './documents-query.service';
 import { DocumentsMutationService } from './documents-mutation.service';
 import { DocumentsOcrService } from './documents-ocr.service';
 import { DocumentsContentMaintenanceService } from './documents-content-maintenance.service';
+import { DocumentVisibilityModule } from '../document-visibility/document-visibility.module';
 
 @Module({
   imports: [
@@ -37,6 +38,7 @@ import { DocumentsContentMaintenanceService } from './documents-content-maintena
     SearchModule,
     AuditLogModule,
     UsersModule,
+    DocumentVisibilityModule,
   ],
   controllers: [DocumentsController],
   providers: [

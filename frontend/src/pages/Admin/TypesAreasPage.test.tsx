@@ -16,10 +16,12 @@ const mocks = vi.hoisted(() => ({
     documentTypesCreate: vi.fn(),
     documentTypesUpdate: vi.fn(),
     documentTypesDelete: vi.fn(),
+    documentTypesHardDelete: vi.fn(),
     adminAreaCodesList: vi.fn(),
     areaCodesCreate: vi.fn(),
     areaCodesUpdate: vi.fn(),
     areaCodesDelete: vi.fn(),
+    areaCodesHardDelete: vi.fn(),
   },
 }));
 
@@ -45,6 +47,7 @@ vi.mock('../../api/endpoints/types', () => mocks.api);
 describe('TypesAreasPage', () => {
   beforeEach(() => {
     queryClient.clear();
+    window.localStorage.clear();
     mocks.notify.mockReset();
     Object.values(mocks.api).forEach((fn) => fn.mockReset());
 
@@ -76,6 +79,7 @@ describe('TypesAreasPage', () => {
       activo: true,
     });
     mocks.api.documentTypesDelete.mockResolvedValue({ success: true });
+    mocks.api.documentTypesHardDelete.mockResolvedValue({ success: true });
     mocks.api.areaCodesCreate.mockResolvedValue({ id: 2, code: 'FA', nombre: 'Finanzas' });
     mocks.api.areaCodesUpdate.mockResolvedValue({
       id: 1,
@@ -84,6 +88,7 @@ describe('TypesAreasPage', () => {
       activo: true,
     });
     mocks.api.areaCodesDelete.mockResolvedValue({ success: true });
+    mocks.api.areaCodesHardDelete.mockResolvedValue({ success: true });
   });
 
   it('muestra acceso denegado si el usuario no es admin', () => {
@@ -99,7 +104,7 @@ describe('TypesAreasPage', () => {
     expect(screen.getByText('Acceso denegado')).toBeInTheDocument();
   });
 
-  it('crea un tipo y actualiza un área', async () => {
+  it('crea un tipo y actualiza código y nombre en ambas tablas', async () => {
     renderWithProviders(<TypesAreasPage />);
 
     expect(await screen.findByText('Procedimiento')).toBeInTheDocument();
@@ -119,8 +124,29 @@ describe('TypesAreasPage', () => {
       expect(mocks.notify).toHaveBeenCalledWith('Tipo creado', 'success');
     });
 
+    fireEvent.click(screen.getAllByRole('button', { name: 'Editar' })[0]);
+    const editTypeDialog = screen.getByRole('dialog', { name: 'Editar tipo de documento' });
+    fireEvent.change(within(editTypeDialog).getByLabelText('Código'), {
+      target: { value: 'sig' },
+    });
+    fireEvent.change(within(editTypeDialog).getByLabelText('Nombre largo'), {
+      target: { value: 'Procedimiento SIG' },
+    });
+    fireEvent.click(within(editTypeDialog).getByRole('button', { name: 'Guardar' }));
+
+    await waitFor(() => {
+      expect(mocks.api.documentTypesUpdate).toHaveBeenCalledWith(1, {
+        code: 'SIG',
+        nombreLargo: 'Procedimiento SIG',
+      });
+      expect(mocks.notify).toHaveBeenCalledWith('Tipo actualizado', 'success');
+    });
+
     fireEvent.click(screen.getAllByRole('button', { name: 'Editar' })[1]);
     const editAreaDialog = screen.getByRole('dialog', { name: 'Editar área' });
+    fireEvent.change(within(editAreaDialog).getByLabelText('Código'), {
+      target: { value: 'rc' },
+    });
     fireEvent.change(within(editAreaDialog).getByLabelText('Nombre'), {
       target: { value: 'Recursos y Calidad' },
     });
@@ -128,7 +154,7 @@ describe('TypesAreasPage', () => {
 
     await waitFor(() => {
       expect(mocks.api.areaCodesUpdate).toHaveBeenCalledWith(1, {
-        id: 1,
+        code: 'RC',
         nombre: 'Recursos y Calidad',
       });
       expect(mocks.notify).toHaveBeenCalledWith('Área actualizada', 'success');
@@ -159,5 +185,82 @@ describe('TypesAreasPage', () => {
       expect(mocks.api.areaCodesDelete).toHaveBeenCalledWith(1);
       expect(mocks.notify).toHaveBeenCalledWith('Área desactivada', 'success');
     });
+  });
+
+  it('elimina definitivamente un tipo y un área', async () => {
+    renderWithProviders(<TypesAreasPage />);
+
+    expect(await screen.findByText('Procedimiento')).toBeInTheDocument();
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Eliminar' })[0]);
+    const deleteTypeDialog = screen.getByRole('dialog', {
+      name: 'Eliminar tipo de documento',
+    });
+    expect(deleteTypeDialog).toHaveTextContent(
+      'Se eliminará definitivamente el tipo PRO. Los documentos que lo usen quedarán sin tipo asignado.',
+    );
+    fireEvent.click(within(deleteTypeDialog).getByRole('button', { name: 'Eliminar' }));
+
+    await waitFor(() => {
+      expect(mocks.api.documentTypesHardDelete).toHaveBeenCalledWith(1);
+      expect(mocks.notify).toHaveBeenCalledWith('Tipo eliminado', 'success');
+    });
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Eliminar' })[1]);
+    const deleteAreaDialog = screen.getByRole('dialog', { name: 'Eliminar área' });
+    expect(deleteAreaDialog).toHaveTextContent(
+      'Se eliminará definitivamente el área RC. Los documentos y usuarios que la tengan asignada perderán esa relación.',
+    );
+    fireEvent.click(within(deleteAreaDialog).getByRole('button', { name: 'Eliminar' }));
+
+    await waitFor(() => {
+      expect(mocks.api.areaCodesHardDelete).toHaveBeenCalledWith(1);
+      expect(mocks.notify).toHaveBeenCalledWith('Área eliminada', 'success');
+    });
+  });
+
+  it('recupera filtros guardados por usuario en ambas tablas', async () => {
+    window.localStorage.setItem(
+      'admin-types-areas-filters:admin@local.com',
+      JSON.stringify({
+        lastUsed: {
+          typeSearch: 'PRO',
+          typeStatus: 'inactive',
+          typePage: 2,
+          typeLimit: 20,
+          areaSearch: 'RC',
+          areaStatus: 'all',
+          areaPage: 3,
+          areaLimit: 5,
+        },
+        views: [],
+      }),
+    );
+
+    renderWithProviders(<TypesAreasPage />);
+
+    await waitFor(() => {
+      expect(mocks.api.adminDocumentTypesList).toHaveBeenCalledWith({
+        q: 'PRO',
+        includeInactive: false,
+        status: 'inactive',
+        page: 2,
+        limit: 20,
+      });
+      expect(mocks.api.adminAreaCodesList).toHaveBeenCalledWith({
+        q: 'RC',
+        includeInactive: true,
+        status: 'all',
+        page: 3,
+        limit: 5,
+      });
+    });
+
+    expect(screen.getAllByDisplayValue('PRO')[0]).toBeInTheDocument();
+    expect(screen.getAllByDisplayValue('RC')[0]).toBeInTheDocument();
+    expect(screen.getAllByLabelText('Estado')[0]).toHaveValue('inactive');
+    expect(screen.getAllByLabelText('Estado')[1]).toHaveValue('all');
+    expect(screen.getAllByLabelText('Límite')[0]).toHaveValue('20');
+    expect(screen.getAllByLabelText('Límite')[1]).toHaveValue('5');
   });
 });

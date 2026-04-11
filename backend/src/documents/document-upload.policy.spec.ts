@@ -18,6 +18,19 @@ describe('document-upload.policy', () => {
     });
   });
 
+  it('acepta archivos XLS legacy con MIME coherente', () => {
+    expect(
+      assertUploadMimeType({
+        originalName: 'reporte.xls',
+        mimeType: 'application/vnd.ms-excel',
+      }),
+    ).toEqual({
+      originalName: 'reporte.xls',
+      extension: '.xls',
+      mimeType: 'application/vnd.ms-excel',
+    });
+  });
+
   it('rechaza tipos MIME que no coinciden con la extension', () => {
     expect(() =>
       assertUploadMimeType({

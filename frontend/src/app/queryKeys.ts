@@ -9,6 +9,7 @@ export const queryKeys = {
   documents: {
     all: ['documents'] as const,
     list: (params: unknown) => ['documents', params] as const,
+    visibility: ['documents-visibility'] as const,
     search: ['documents-search'] as const,
     searchList: (filters: unknown, page: number, limit: number) =>
       ['documents-search', filters, page, limit] as const,
@@ -25,7 +26,7 @@ export const queryKeys = {
     all: ['user'] as const,
     detail: (userId: number | null | undefined) => ['user', userId] as const,
     search: ['users-search'] as const,
-    searchList: (query: string) => ['users-search', query] as const,
+    searchList: (params: unknown) => ['users-search', params] as const,
   },
   permissions: {
     mineAll: ['permission-requests', 'mine'] as const,

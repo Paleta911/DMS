@@ -91,4 +91,26 @@ export class CategoriesMutationService {
     await this.categoryRepo.save(category);
     return { success: true, deactivated: true };
   }
+
+  async hardDelete(id: number) {
+    const category = await this.categoryRepo.findOne({ where: { id } });
+    if (!category) {
+      throw new NotFoundException('Categoria no encontrada');
+    }
+
+    await this.documentRepo
+      .createQueryBuilder()
+      .update(Document)
+      .set({ category: null })
+      .where('categoryId = :id', { id })
+      .execute();
+
+    await this.categoryRepo.delete(id);
+    return {
+      success: true,
+      deleted: true,
+      id: category.id,
+      nombre: category.nombre,
+    };
+  }
 }

@@ -4,7 +4,11 @@ import path from 'path';
 import axios from 'axios';
 import FormData from 'form-data';
 import { spawn, spawnSync } from 'child_process';
-import { resolveInfraEnv, waitForDependency, checkSqlReady } from './lib/infra-utils.mjs';
+import {
+  resolveInfraEnv,
+  waitForDependency,
+  checkSqlReady,
+} from './lib/infra-utils.mjs';
 
 const baseUrl = process.env.SMOKE_BASE_URL ?? 'http://127.0.0.1:3000';
 const adminEmail = process.env.SMOKE_ADMIN_EMAIL ?? 'admin@local.com';
@@ -37,6 +41,23 @@ async function requestJson(url, options = {}) {
     data = text;
   }
   return { res, data };
+}
+
+function unwrapListPayload(data) {
+  if (Array.isArray(data)) {
+    return data;
+  }
+  if (Array.isArray(data?.items)) {
+    return data.items;
+  }
+  return [];
+}
+
+function getSearchTotal(data) {
+  if (typeof data?.total === 'number') {
+    return data.total;
+  }
+  return data?.total?.value ?? 0;
 }
 
 async function fetchOrThrow(url, options) {
@@ -120,7 +141,6 @@ function runBuildOrThrow() {
   }
 }
 
-
 function killPort(port) {
   const netstat = spawnSync('netstat', ['-aon'], {
     encoding: 'utf8',
@@ -200,8 +220,8 @@ function buildPdfBuffer(text) {
   return Buffer.from(parts.join(''), 'ascii');
 }
 
-async function ensureServer(baseUrl) {
-  const healthUrl = `${baseUrl}/health`;
+async function ensureServer(url) {
+  const healthUrl = `${url}/health`;
   killPort(3000);
   const db = await waitForDependency({
     label: `sqlserver ${infraEnv.dbHost}:${infraEnv.dbPort}`,
@@ -273,6 +293,7 @@ async function ensureServer(baseUrl) {
 async function main() {
   console.log('[smoke] baseUrl:', baseUrl);
   let serverProcess;
+  let tmpDir;
   try {
     serverProcess = await ensureServer(baseUrl);
 
@@ -329,394 +350,611 @@ async function main() {
     );
     console.log('[categories:list] count:', categories.data?.length ?? 0);
 
-  const newUserEmail = `user-${Date.now()}@local.com`;
-  const newUserPassword = 'User1234';
-  const newUser = await requestJson(`${baseUrl}/auth/register`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ email: newUserEmail, password: newUserPassword }),
-  });
-  assert(newUser.res.ok, `[users:create] failed: ${newUser.res.status}`);
-  const newUserId = newUser.data?.id;
-  assert(newUserId, '[users:create] missing id');
-
-  const assignAreas = await requestJson(
-    `${baseUrl}/users/${newUserId}/areas`,
-    {
-      method: 'PATCH',
+    const areasResponse = await requestJson(`${baseUrl}/area-codes?limit=100`, {
+      method: 'GET',
       headers: { Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ areaCodes: ['RC'] }),
-    },
-  );
-  assert(assignAreas.res.ok, `[users:areas] failed: ${assignAreas.res.status}`);
-
-  const reviewerEmail = `reviewer-${Date.now()}@local.com`;
-  const reviewerPassword = 'Reviewer123';
-  const reviewerUser = await requestJson(`${baseUrl}/auth/register`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ email: reviewerEmail, password: reviewerPassword }),
-  });
-  assert(reviewerUser.res.ok, `[reviewer:create] failed: ${reviewerUser.res.status}`);
-  const reviewerId = reviewerUser.data?.id;
-  assert(reviewerId, '[reviewer:create] missing id');
-
-  const approverEmail = `approver-${Date.now()}@local.com`;
-  const approverPassword = 'Approver123';
-  const approverUser = await requestJson(`${baseUrl}/auth/register`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ email: approverEmail, password: approverPassword }),
-  });
-  assert(approverUser.res.ok, `[approver:create] failed: ${approverUser.res.status}`);
-  const approverId = approverUser.data?.id;
-  assert(approverId, '[approver:create] missing id');
-
-  const assignReviewerAreas = await requestJson(
-    `${baseUrl}/users/${reviewerId}/areas`,
-    {
-      method: 'PATCH',
-      headers: { Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ areaCodes: ['RC'] }),
-    },
-  );
-  assert(assignReviewerAreas.res.ok, `[reviewer:areas] failed: ${assignReviewerAreas.res.status}`);
-
-  const assignApproverAreas = await requestJson(
-    `${baseUrl}/users/${approverId}/areas`,
-    {
-      method: 'PATCH',
-      headers: { Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ areaCodes: ['RC'] }),
-    },
-  );
-  assert(assignApproverAreas.res.ok, `[approver:areas] failed: ${assignApproverAreas.res.status}`);
-
-  const loginUser = await requestJson(`${baseUrl}/auth/login`, {
-    method: 'POST',
-    body: JSON.stringify({ email: newUserEmail, password: newUserPassword }),
-  });
-  assert(loginUser.res.ok, `[login:user] failed: ${loginUser.res.status}`);
-  const userToken = loginUser.data?.accessToken;
-  assert(userToken, '[login:user] missing accessToken');
-
-  const loginReviewer = await requestJson(`${baseUrl}/auth/login`, {
-    method: 'POST',
-    body: JSON.stringify({ email: reviewerEmail, password: reviewerPassword }),
-  });
-  assert(loginReviewer.res.ok, `[login:reviewer] failed: ${loginReviewer.res.status}`);
-  const reviewerToken = loginReviewer.data?.accessToken;
-  assert(reviewerToken, '[login:reviewer] missing accessToken');
-
-  const loginApprover = await requestJson(`${baseUrl}/auth/login`, {
-    method: 'POST',
-    body: JSON.stringify({ email: approverEmail, password: approverPassword }),
-  });
-  assert(loginApprover.res.ok, `[login:approver] failed: ${loginApprover.res.status}`);
-  const approverToken = loginApprover.data?.accessToken;
-  assert(approverToken, '[login:approver] missing accessToken');
-
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dms-'));
-  const filePath = path.join(tmpDir, 'smoke.pdf');
-  fs.writeFileSync(filePath, buildPdfBuffer('Smoke test PDF'));
-
-  const docName = `Doc-${Date.now()}`;
-  const buildUploadForm = () => {
-    const form = new FormData();
-    const fileBuffer = fs.readFileSync(filePath);
-    form.append('file', fileBuffer, {
-      filename: 'smoke.pdf',
-      contentType: 'application/pdf',
     });
-    form.append('nombreDocumento', docName);
-    form.append('comentario', 'Smoke test');
-    form.append('categoryId', String(categoryId));
-    form.append('documentTypeCode', 'PRO');
-    form.append('areaCode', 'RC');
-    return form;
-  };
+    assert(
+      areasResponse.res.ok,
+      `[area-codes:list] failed: ${areasResponse.res.status} ${JSON.stringify(
+        areasResponse.data,
+      )}`,
+    );
+    let activeAreas = unwrapListPayload(areasResponse.data).filter(
+      (area) => area?.activo !== false,
+    );
+    while (activeAreas.length < 2) {
+      const suffix = String(Date.now() + activeAreas.length).slice(-4);
+      const createdArea = await requestJson(`${baseUrl}/area-codes`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          code: `SM${suffix}`,
+          nombre: `Smoke Area ${suffix}`,
+          activo: true,
+        }),
+      });
+      assert(
+        createdArea.res.ok,
+        `[area-codes:create] failed: ${createdArea.res.status} ${JSON.stringify(
+          createdArea.data,
+        )}`,
+      );
+      activeAreas.push(createdArea.data);
+    }
+    const primaryAreaCode = activeAreas[0].code;
+    const secondaryAreaCode = activeAreas[1].code;
 
-  const uploadRes = await postMultipartWithRetry(
-    buildUploadForm,
-    `${baseUrl}/documents/upload`,
-    userToken,
-  );
-  const uploadData = uploadRes.data;
-  assert(uploadRes.status >= 200 && uploadRes.status < 300, `[documents:upload] failed: ${uploadRes.status}`);
-  const documentId = uploadData.documentId;
-  const versionId = uploadData.versionId;
-  const codigo = uploadData.codigo;
-  assert(documentId && versionId, '[documents:upload] missing ids');
-  assert(
-    typeof codigo === 'string' && /^PRO-RC-\d+$/.test(codigo),
-    `[documents:upload] invalid codigo ${codigo}`,
-  );
-  console.log('[documents:upload] ok');
+    const documentTypesResponse = await requestJson(
+      `${baseUrl}/document-types?limit=100`,
+      {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${token}` },
+      },
+    );
+    assert(
+      documentTypesResponse.res.ok,
+      `[document-types:list] failed: ${documentTypesResponse.res.status} ${JSON.stringify(
+        documentTypesResponse.data,
+      )}`,
+    );
+    let activeDocumentTypes = unwrapListPayload(documentTypesResponse.data).filter(
+      (documentType) => documentType?.activo !== false,
+    );
+    if (activeDocumentTypes.length === 0) {
+      const suffix = String(Date.now()).slice(-4);
+      const createdDocumentType = await requestJson(
+        `${baseUrl}/document-types`,
+        {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            code: `SM${suffix}`,
+            nombreLargo: `Smoke Type ${suffix}`,
+            activo: true,
+          }),
+        },
+      );
+      assert(
+        createdDocumentType.res.ok,
+        `[document-types:create] failed: ${createdDocumentType.res.status} ${JSON.stringify(
+          createdDocumentType.data,
+        )}`,
+      );
+      activeDocumentTypes = [createdDocumentType.data];
+    }
+    const documentTypeCode = activeDocumentTypes[0].code;
 
-  const docNameFA = `Doc-FA-${Date.now()}`;
-  const buildUploadFAForm = () => {
-    const formFA = new FormData();
-    const fileBufferFA = fs.readFileSync(filePath);
-    formFA.append('file', fileBufferFA, {
-      filename: 'smoke-fa.pdf',
-      contentType: 'application/pdf',
+    const buildAdminUserPayload = (email, password, label) => ({
+      nombre: `Smoke ${label}`,
+      primerApellido: 'Test',
+      segundoApellido: 'User',
+      email,
+      telefono: '2280000000',
+      fechaNacimiento: '1998-01-15',
+      password,
+      confirmPassword: password,
     });
-    formFA.append('nombreDocumento', docNameFA);
-    formFA.append('comentario', 'Admin upload');
-    formFA.append('categoryId', String(categoryId));
-    formFA.append('documentTypeCode', 'PRO');
-    formFA.append('areaCode', 'FA');
-    return formFA;
-  };
 
-  console.log('[documents:upload:fa] start');
-  const uploadFARes = await postMultipartWithRetry(
-    buildUploadFAForm,
-    `${baseUrl}/documents/upload`,
-    token,
-  );
-  const uploadFAData = uploadFARes.data;
-  assert(uploadFARes.status >= 200 && uploadFARes.status < 300, `[documents:upload:fa] failed: ${uploadFARes.status}`);
-  const documentIdFA = uploadFAData.documentId;
-  const versionIdFA = uploadFAData.versionId;
-  assert(documentIdFA && versionIdFA, '[documents:upload:fa] missing ids');
+    const createApprovedUser = async (label, password) => {
+      const email = `${label}-${Date.now()}@local.com`;
+      const created = await requestJson(`${baseUrl}/auth/register`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: JSON.stringify(buildAdminUserPayload(email, password, label)),
+      });
+      assert(
+        created.res.ok,
+        `[${label}:create] failed: ${created.res.status} ${JSON.stringify(
+          created.data,
+        )}`,
+      );
+      assert(
+        created.data?.status === 'APPROVED',
+        `[${label}:create] expected APPROVED, got ${created.data?.status}`,
+      );
+      return { id: created.data.id, email, password };
+    };
 
-  const assignWorkflow = await requestJson(
-    `${baseUrl}/documents/${documentId}/assign-reviewers`,
-    {
-      method: 'PATCH',
-      headers: { Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ revisoUserId: reviewerId, aproboUserId: approverId }),
-    },
-  );
-  assert(assignWorkflow.res.ok, `[workflow:assign] failed: ${assignWorkflow.res.status}`);
+    const assignUserAreas = async (userId, label, areaCodes) => {
+      const result = await requestJson(`${baseUrl}/users/${userId}/areas`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ areaCodes }),
+      });
+      assert(
+        result.res.ok,
+        `[${label}:areas] failed: ${result.res.status} ${JSON.stringify(
+          result.data,
+        )}`,
+      );
+      return result.data;
+    };
 
-  console.log('[workflow] assigned');
+    const loginUserWithPassword = async ({ email, password }, label) => {
+      const loginResult = await requestJson(`${baseUrl}/auth/login`, {
+        method: 'POST',
+        body: JSON.stringify({ email, password }),
+      });
+      assert(
+        loginResult.res.ok,
+        `[login:${label}] failed: ${loginResult.res.status} ${JSON.stringify(
+          loginResult.data,
+        )}`,
+      );
+      const accessToken = loginResult.data?.accessToken;
+      assert(accessToken, `[login:${label}] missing accessToken`);
+      return accessToken;
+    };
 
-  console.log('[workflow] submit');
-  const submitReview = await requestJson(
-    `${baseUrl}/documents/${documentId}/submit-review`,
-    {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${userToken}` },
-    },
-  );
-  assert(submitReview.res.ok, `[workflow:submit] failed: ${submitReview.res.status}`);
+    const newUser = await createApprovedUser('user', 'User1234');
+    const reviewerUser = await createApprovedUser('reviewer', 'Reviewer123');
+    const approverUser = await createApprovedUser('approver', 'Approver123');
 
-  console.log('[workflow] review');
-  const reviewDecision = await requestJson(
-    `${baseUrl}/documents/${documentId}/review`,
-    {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${reviewerToken}` },
-      body: JSON.stringify({ decision: 'APPROVED', comentario: 'OK' }),
-    },
-  );
-  assert(reviewDecision.res.ok, `[workflow:review] failed: ${reviewDecision.res.status}`);
+    await assignUserAreas(newUser.id, 'user', [primaryAreaCode]);
+    await assignUserAreas(reviewerUser.id, 'reviewer', [primaryAreaCode]);
+    await assignUserAreas(approverUser.id, 'approver', [primaryAreaCode]);
 
-  console.log('[workflow] approve');
-  const approveDecision = await requestJson(
-    `${baseUrl}/documents/${documentId}/approve`,
-    {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${approverToken}` },
-      body: JSON.stringify({ decision: 'APPROVED', comentario: 'OK' }),
-    },
-  );
-  assert(approveDecision.res.ok, `[workflow:approve] failed: ${approveDecision.res.status}`);
+    const userToken = await loginUserWithPassword(newUser, 'user');
+    const reviewerToken = await loginUserWithPassword(reviewerUser, 'reviewer');
+    const approverToken = await loginUserWithPassword(approverUser, 'approver');
 
-  const workflowStatus = await requestJson(
-    `${baseUrl}/documents/${documentId}/workflow`,
-    {
-      method: 'GET',
-      headers: { Authorization: `Bearer ${userToken}` },
-    },
-  );
-  assert(workflowStatus.res.ok, `[workflow:get] failed: ${workflowStatus.res.status}`);
-  assert(
-    workflowStatus.data?.status === 'APPROVED',
-    `[workflow:get] expected APPROVED, got ${workflowStatus.data?.status}`,
-  );
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dms-'));
+    const filePath = path.join(tmpDir, 'smoke.pdf');
+    fs.writeFileSync(filePath, buildPdfBuffer('Smoke test PDF'));
 
-  const match = typeof codigo === 'string' ? codigo.split('-').pop() : null;
-  const consecutivo = match ? Number(match) : null;
-  assert(consecutivo, '[documents:upload] missing consecutivo');
+    const docName = `Doc-${Date.now()}`;
+    const buildUploadForm = () => {
+      const form = new FormData();
+      const fileBuffer = fs.readFileSync(filePath);
+      form.append('file', fileBuffer, {
+        filename: 'smoke.pdf',
+        contentType: 'application/pdf',
+      });
+      form.append('nombreDocumento', docName);
+      form.append('comentario', 'Smoke test');
+      form.append('categoryId', String(categoryId));
+      form.append('documentTypeCode', documentTypeCode);
+      form.append('areaCode', primaryAreaCode);
+      return form;
+    };
 
-  const docNameV2 = `Doc-${Date.now()}`;
-  const buildUploadV2Form = () => {
-    const formNewVersion = new FormData();
-    const fileBufferV2 = fs.readFileSync(filePath);
-    formNewVersion.append('file', fileBufferV2, {
-      filename: 'smoke-v2.pdf',
-      contentType: 'application/pdf',
-    });
-    formNewVersion.append('nombreDocumento', docNameV2);
-    formNewVersion.append('comentario', 'New version');
-    formNewVersion.append('categoryId', String(categoryId));
-    formNewVersion.append('documentTypeCode', 'PRO');
-    formNewVersion.append('areaCode', 'RC');
-    formNewVersion.append('consecutivo', String(consecutivo));
-    return formNewVersion;
-  };
+    const uploadRes = await postMultipartWithRetry(
+      buildUploadForm,
+      `${baseUrl}/documents/upload`,
+      userToken,
+    );
+    const uploadData = uploadRes.data;
+    assert(
+      uploadRes.status >= 200 && uploadRes.status < 300,
+      `[documents:upload] failed: ${uploadRes.status} ${JSON.stringify(
+        uploadData,
+      )}`,
+    );
+    const documentId = uploadData.documentId;
+    const versionId = uploadData.versionId;
+    const codigo = uploadData.codigo;
+    assert(documentId && versionId, '[documents:upload] missing ids');
+    assert(
+      typeof codigo === 'string' &&
+        codigo.startsWith(`${documentTypeCode}-${primaryAreaCode}-`),
+      `[documents:upload] invalid codigo ${codigo}`,
+    );
 
-  const uploadNewVersionRes = await postMultipartWithRetry(
-    buildUploadV2Form,
-    `${baseUrl}/documents/upload`,
-    userToken,
-  );
-  const uploadNewVersionData = uploadNewVersionRes.data;
-  assert(
-    uploadNewVersionRes.status >= 200 && uploadNewVersionRes.status < 300,
-    `[documents:upload:v2] failed: ${uploadNewVersionRes.status}`,
-  );
-  assert(
-    uploadNewVersionData.documentId === documentId,
-    '[documents:upload:v2] should reuse document',
-  );
+    const docNameSecondary = `Doc-Secondary-${Date.now()}`;
+    const buildSecondaryUploadForm = () => {
+      const form = new FormData();
+      const fileBuffer = fs.readFileSync(filePath);
+      form.append('file', fileBuffer, {
+        filename: 'smoke-secondary.pdf',
+        contentType: 'application/pdf',
+      });
+      form.append('nombreDocumento', docNameSecondary);
+      form.append('comentario', 'Admin upload secondary');
+      form.append('categoryId', String(categoryId));
+      form.append('documentTypeCode', documentTypeCode);
+      form.append('areaCode', secondaryAreaCode);
+      return form;
+    };
 
-  const workflowAfterReset = await requestJson(
-    `${baseUrl}/documents/${documentId}/workflow`,
-    {
-      method: 'GET',
-      headers: { Authorization: `Bearer ${userToken}` },
-    },
-  );
-  assert(
-    workflowAfterReset.data?.status === 'DRAFT',
-    `[workflow:reset] expected DRAFT, got ${workflowAfterReset.data?.status}`,
-  );
+    const uploadSecondaryRes = await postMultipartWithRetry(
+      buildSecondaryUploadForm,
+      `${baseUrl}/documents/upload`,
+      token,
+    );
+    const uploadSecondaryData = uploadSecondaryRes.data;
+    assert(
+      uploadSecondaryRes.status >= 200 && uploadSecondaryRes.status < 300,
+      `[documents:upload:secondary] failed: ${uploadSecondaryRes.status} ${JSON.stringify(
+        uploadSecondaryData,
+      )}`,
+    );
+    const documentIdSecondary = uploadSecondaryData.documentId;
+    const versionIdSecondary = uploadSecondaryData.versionId;
+    assert(
+      documentIdSecondary && versionIdSecondary,
+      '[documents:upload:secondary] missing ids',
+    );
 
-  const documents = await requestJson(`${baseUrl}/documents`, {
-    method: 'GET',
-    headers: { Authorization: `Bearer ${userToken}` },
-  });
-  assert(documents.res.ok, `[documents:list] failed: ${documents.res.status}`);
-  console.log('[documents:list] total:', documents.data?.total ?? 0);
+    const assignWorkflow = await requestJson(
+      `${baseUrl}/documents/${documentId}/assign-reviewers`,
+      {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          revisoUserId: reviewerUser.id,
+          aproboUserId: approverUser.id,
+        }),
+      },
+    );
+    assert(
+      assignWorkflow.res.ok,
+      `[workflow:assign] failed: ${assignWorkflow.res.status} ${JSON.stringify(
+        assignWorkflow.data,
+      )}`,
+    );
 
-  const versions = await requestJson(`${baseUrl}/documents/${documentId}/versions`, {
-    method: 'GET',
-    headers: { Authorization: `Bearer ${userToken}` },
-  });
-  assert(versions.res.ok, `[versions:list] failed: ${versions.res.status}`);
-  console.log('[versions:list] count:', versions.data?.length ?? 0);
+    const submitReview = await requestJson(
+      `${baseUrl}/documents/${documentId}/submit-review`,
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${userToken}` },
+      },
+    );
+    assert(
+      submitReview.res.ok,
+      `[workflow:submit] failed: ${submitReview.res.status} ${JSON.stringify(
+        submitReview.data,
+      )}`,
+    );
 
-  const downloadRes = await fetchOrThrow(`${baseUrl}/versions/${versionId}/download`, {
-    method: 'GET',
-    headers: { Authorization: `Bearer ${userToken}` },
-  });
-  assert(downloadRes.ok, `[versions:download] failed: ${downloadRes.status}`);
-  const downloadBuffer = Buffer.from(await downloadRes.arrayBuffer());
-  assert(downloadBuffer.length > 0, '[versions:download] empty file');
-  console.log('[versions:download] ok, size:', downloadBuffer.length);
+    const reviewDecision = await requestJson(
+      `${baseUrl}/documents/${documentId}/review`,
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${reviewerToken}` },
+        body: JSON.stringify({ decision: 'APPROVED', comentario: 'OK' }),
+      },
+    );
+    assert(
+      reviewDecision.res.ok,
+      `[workflow:review] failed: ${reviewDecision.res.status} ${JSON.stringify(
+        reviewDecision.data,
+      )}`,
+    );
 
-  const forbiddenDoc = await requestJson(`${baseUrl}/documents/${documentIdFA}`, {
-    method: 'GET',
-    headers: { Authorization: `Bearer ${userToken}` },
-  });
-  assert(
-    forbiddenDoc.res.status === 403,
-    `[documents:forbidden] expected 403, got ${forbiddenDoc.res.status}`,
-  );
+    const approveDecision = await requestJson(
+      `${baseUrl}/documents/${documentId}/approve`,
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${approverToken}` },
+        body: JSON.stringify({ decision: 'APPROVED', comentario: 'OK' }),
+      },
+    );
+    assert(
+      approveDecision.res.ok,
+      `[workflow:approve] failed: ${approveDecision.res.status} ${JSON.stringify(
+        approveDecision.data,
+      )}`,
+    );
 
-  const forbiddenVersions = await requestJson(
-    `${baseUrl}/documents/${documentIdFA}/versions`,
-    {
-      method: 'GET',
-      headers: { Authorization: `Bearer ${userToken}` },
-    },
-  );
-  assert(
-    forbiddenVersions.res.status === 403,
-    `[versions:forbidden] expected 403, got ${forbiddenVersions.res.status}`,
-  );
-
-  const forbiddenDownload = await fetchOrThrow(
-    `${baseUrl}/versions/${versionIdFA}/download`,
-    {
-      method: 'GET',
-      headers: { Authorization: `Bearer ${userToken}` },
-    },
-  );
-  assert(
-    forbiddenDownload.status === 403,
-    `[download:forbidden] expected 403, got ${forbiddenDownload.status}`,
-  );
-
-  const reindex = await requestJson(`${baseUrl}/search/reindex`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  assert(reindex.res.ok, `[search:reindex] failed: ${reindex.res.status}`);
-  console.log('[search:reindex] ok');
-
-  let search;
-  let searchTotal = 0;
-  for (let attempt = 1; attempt <= 10; attempt += 1) {
-    search = await requestJson(
-      `${baseUrl}/search?q=PRO&documentTypeCode=PRO&areaCode=RC`,
+    const workflowStatus = await requestJson(
+      `${baseUrl}/documents/${documentId}/workflow`,
       {
         method: 'GET',
         headers: { Authorization: `Bearer ${userToken}` },
       },
     );
-    assert(search.res.ok, `[search] failed: ${search.res.status}`);
-    console.log('[search] engine:', search.data?.engine);
-    if (expectedSearchEngine) {
-      assert(
-        search.data?.engine === expectedSearchEngine,
-        `[search] expected engine ${expectedSearchEngine}, got ${search.data?.engine}`,
-      );
-    }
-    searchTotal =
-      typeof search.data?.total === 'number'
-        ? search.data.total
-        : search.data?.total?.value ?? 0;
-    if (searchTotal >= 1) {
-      break;
-    }
-    await new Promise((resolve) => setTimeout(resolve, 500));
-  }
+    assert(
+      workflowStatus.res.ok,
+      `[workflow:get] failed: ${workflowStatus.res.status} ${JSON.stringify(
+        workflowStatus.data,
+      )}`,
+    );
+    assert(
+      workflowStatus.data?.status === 'APPROVED',
+      `[workflow:get] expected APPROVED, got ${workflowStatus.data?.status}`,
+    );
 
-  if (searchTotal < 1) {
-    console.error('[search] response:', JSON.stringify(search?.data));
-    throw new Error('[search] expected at least 1 result after retries');
-  }
-  console.log('[search] ok');
+    const match = typeof codigo === 'string' ? codigo.split('-').pop() : null;
+    const consecutivo = match ? Number(match) : null;
+    assert(consecutivo, '[documents:upload] missing consecutivo');
 
-  const forbiddenSearch = await requestJson(
-    `${baseUrl}/search?areaCode=FA`,
-    {
+    const buildUploadV2Form = () => {
+      const formNewVersion = new FormData();
+      const fileBuffer = fs.readFileSync(filePath);
+      formNewVersion.append('file', fileBuffer, {
+        filename: 'smoke-v2.pdf',
+        contentType: 'application/pdf',
+      });
+      formNewVersion.append('nombreDocumento', `Doc-V2-${Date.now()}`);
+      formNewVersion.append('comentario', 'New version');
+      formNewVersion.append('categoryId', String(categoryId));
+      formNewVersion.append('documentTypeCode', documentTypeCode);
+      formNewVersion.append('areaCode', primaryAreaCode);
+      formNewVersion.append('consecutivo', String(consecutivo));
+      return formNewVersion;
+    };
+
+    const uploadNewVersionRes = await postMultipartWithRetry(
+      buildUploadV2Form,
+      `${baseUrl}/documents/upload`,
+      userToken,
+    );
+    const uploadNewVersionData = uploadNewVersionRes.data;
+    assert(
+      uploadNewVersionRes.status >= 200 && uploadNewVersionRes.status < 300,
+      `[documents:upload:v2] failed: ${uploadNewVersionRes.status} ${JSON.stringify(
+        uploadNewVersionData,
+      )}`,
+    );
+    assert(
+      uploadNewVersionData.documentId === documentId,
+      '[documents:upload:v2] should reuse document',
+    );
+
+    const workflowAfterReset = await requestJson(
+      `${baseUrl}/documents/${documentId}/workflow`,
+      {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${userToken}` },
+      },
+    );
+    assert(
+      workflowAfterReset.res.ok,
+      `[workflow:reset:get] failed: ${workflowAfterReset.res.status} ${JSON.stringify(
+        workflowAfterReset.data,
+      )}`,
+    );
+    assert(
+      workflowAfterReset.data?.status === 'DRAFT',
+      `[workflow:reset] expected DRAFT, got ${workflowAfterReset.data?.status}`,
+    );
+
+    const documents = await requestJson(`${baseUrl}/documents`, {
       method: 'GET',
       headers: { Authorization: `Bearer ${userToken}` },
-    },
-  );
-  assert(
-    forbiddenSearch.res.status === 403,
-    `[search:forbidden] expected 403, got ${forbiddenSearch.res.status}`,
-  );
+    });
+    assert(
+      documents.res.ok,
+      `[documents:list] failed: ${documents.res.status} ${JSON.stringify(
+        documents.data,
+      )}`,
+    );
+    const listedDocuments = documents.data?.items ?? [];
+    assert(
+      listedDocuments.some((document) => Number(document.id) === Number(documentId)),
+      '[documents:list] missing primary document',
+    );
+    assert(
+      listedDocuments.some(
+        (document) => Number(document.id) === Number(documentIdSecondary),
+      ),
+      '[documents:list] missing secondary document',
+    );
 
-  const auditLogs = await requestJson(
-    `${baseUrl}/audit-logs?page=1&limit=50`,
-    {
+    const versions = await requestJson(
+      `${baseUrl}/documents/${documentId}/versions`,
+      {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${userToken}` },
+      },
+    );
+    assert(
+      versions.res.ok,
+      `[versions:list] failed: ${versions.res.status} ${JSON.stringify(
+        versions.data,
+      )}`,
+    );
+    assert(
+      Array.isArray(versions.data) && versions.data.length >= 2,
+      '[versions:list] expected at least 2 versions',
+    );
+
+    const directVersions = await requestJson(`${baseUrl}/versions/${documentId}`, {
       method: 'GET',
+      headers: { Authorization: `Bearer ${userToken}` },
+    });
+    assert(
+      directVersions.res.ok,
+      `[versions:direct-list] failed: ${directVersions.res.status} ${JSON.stringify(
+        directVersions.data,
+      )}`,
+    );
+
+    const downloadRes = await fetchOrThrow(
+      `${baseUrl}/versions/${versionId}/download`,
+      {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${userToken}` },
+      },
+    );
+    assert(downloadRes.ok, `[versions:download] failed: ${downloadRes.status}`);
+    const downloadBuffer = Buffer.from(await downloadRes.arrayBuffer());
+    assert(downloadBuffer.length > 0, '[versions:download] empty file');
+
+    const crossAreaDocument = await requestJson(
+      `${baseUrl}/documents/${documentIdSecondary}`,
+      {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${userToken}` },
+      },
+    );
+    assert(
+      crossAreaDocument.res.ok,
+      `[documents:cross-area] failed: ${crossAreaDocument.res.status} ${JSON.stringify(
+        crossAreaDocument.data,
+      )}`,
+    );
+
+    const crossAreaVersions = await requestJson(
+      `${baseUrl}/documents/${documentIdSecondary}/versions`,
+      {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${userToken}` },
+      },
+    );
+    assert(
+      crossAreaVersions.res.ok,
+      `[documents:cross-area:versions] failed: ${crossAreaVersions.res.status} ${JSON.stringify(
+        crossAreaVersions.data,
+      )}`,
+    );
+
+    const crossAreaDirectVersions = await requestJson(
+      `${baseUrl}/versions/${documentIdSecondary}`,
+      {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${userToken}` },
+      },
+    );
+    assert(
+      crossAreaDirectVersions.res.ok,
+      `[versions:cross-area] failed: ${crossAreaDirectVersions.res.status} ${JSON.stringify(
+        crossAreaDirectVersions.data,
+      )}`,
+    );
+
+    const crossAreaDownload = await fetchOrThrow(
+      `${baseUrl}/versions/${versionIdSecondary}/download`,
+      {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${userToken}` },
+      },
+    );
+    assert(
+      crossAreaDownload.ok,
+      `[download:cross-area] failed: ${crossAreaDownload.status}`,
+    );
+    const crossAreaDownloadBuffer = Buffer.from(
+      await crossAreaDownload.arrayBuffer(),
+    );
+    assert(
+      crossAreaDownloadBuffer.length > 0,
+      '[download:cross-area] empty file',
+    );
+
+    const reindex = await requestJson(`${baseUrl}/search/reindex`, {
+      method: 'POST',
       headers: { Authorization: `Bearer ${token}` },
-    },
-  );
-  assert(auditLogs.res.ok, `[audit-logs] failed: ${auditLogs.res.status}`);
-  const actions = (auditLogs.data?.items ?? []).map((item) => item.action);
-  const requiredActions = [
-    'WORKFLOW_ASSIGN',
-    'WORKFLOW_SUBMIT',
-    'WORKFLOW_REVIEW_DECISION',
-    'WORKFLOW_APPROVAL_DECISION',
-    'WORKFLOW_RESET_ON_NEW_VERSION',
-  ];
-  for (const action of requiredActions) {
-    assert(actions.includes(action), `[audit-logs] missing ${action}`);
-  }
+    });
+    assert(
+      reindex.res.ok,
+      `[search:reindex] failed: ${reindex.res.status} ${JSON.stringify(
+        reindex.data,
+      )}`,
+    );
+
+    let primarySearch;
+    let primarySearchTotal = 0;
+    const primarySearchParams = new URLSearchParams({
+      q: docName,
+      documentTypeCode,
+      areaCode: primaryAreaCode,
+    });
+    for (let attempt = 1; attempt <= 10; attempt += 1) {
+      primarySearch = await requestJson(
+        `${baseUrl}/search?${primarySearchParams.toString()}`,
+        {
+          method: 'GET',
+          headers: { Authorization: `Bearer ${userToken}` },
+        },
+      );
+      assert(
+        primarySearch.res.ok,
+        `[search:primary] failed: ${primarySearch.res.status} ${JSON.stringify(
+          primarySearch.data,
+        )}`,
+      );
+      if (expectedSearchEngine) {
+        assert(
+          primarySearch.data?.engine === expectedSearchEngine,
+          `[search] expected engine ${expectedSearchEngine}, got ${primarySearch.data?.engine}`,
+        );
+      }
+      primarySearchTotal = getSearchTotal(primarySearch.data);
+      if (primarySearchTotal >= 1) {
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+    if (primarySearchTotal < 1) {
+      console.error(
+        '[search:primary] response:',
+        JSON.stringify(primarySearch?.data),
+      );
+      throw new Error('[search:primary] expected at least 1 result after retries');
+    }
+
+    let secondarySearch;
+    let secondarySearchTotal = 0;
+    const secondarySearchParams = new URLSearchParams({
+      q: docNameSecondary,
+      documentTypeCode,
+      areaCode: secondaryAreaCode,
+    });
+    for (let attempt = 1; attempt <= 10; attempt += 1) {
+      secondarySearch = await requestJson(
+        `${baseUrl}/search?${secondarySearchParams.toString()}`,
+        {
+          method: 'GET',
+          headers: { Authorization: `Bearer ${userToken}` },
+        },
+      );
+      assert(
+        secondarySearch.res.ok,
+        `[search:cross-area] failed: ${secondarySearch.res.status} ${JSON.stringify(
+          secondarySearch.data,
+        )}`,
+      );
+      secondarySearchTotal = getSearchTotal(secondarySearch.data);
+      if (secondarySearchTotal >= 1) {
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+    if (secondarySearchTotal < 1) {
+      console.error(
+        '[search:cross-area] response:',
+        JSON.stringify(secondarySearch?.data),
+      );
+      throw new Error(
+        '[search:cross-area] expected at least 1 result after retries',
+      );
+    }
+
+    const auditLogs = await requestJson(
+      `${baseUrl}/audit-logs?page=1&limit=100`,
+      {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${token}` },
+      },
+    );
+    assert(
+      auditLogs.res.ok,
+      `[audit-logs] failed: ${auditLogs.res.status} ${JSON.stringify(
+        auditLogs.data,
+      )}`,
+    );
+    const actions = (auditLogs.data?.items ?? []).map((item) => item.action);
+    const requiredActions = [
+      'WORKFLOW_ASSIGN',
+      'WORKFLOW_SUBMIT',
+      'WORKFLOW_REVIEW_DECISION',
+      'WORKFLOW_APPROVAL_DECISION',
+      'WORKFLOW_RESET_ON_NEW_VERSION',
+      'VERSION_DOWNLOAD',
+      'SEARCH_QUERY',
+    ];
+    for (const action of requiredActions) {
+      assert(actions.includes(action), `[audit-logs] missing ${action}`);
+    }
 
     console.log('[smoke] done');
   } finally {
+    if (tmpDir) {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
     if (serverProcess) {
       serverProcess.kill();
       const exited = await new Promise((resolve) => {

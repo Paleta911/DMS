@@ -65,7 +65,7 @@ export function assertSecurityConfig() {
 
   const emailMode = (getEnv('EMAIL_MODE', 'console') ?? 'console').toLowerCase();
   const loginBlockAfter = Number(getEnv('AUTH_LOGIN_BLOCK_AFTER', '5'));
-  const loginBlockSec = Number(getEnv('AUTH_LOGIN_BLOCK_SEC', '900'));
+  const loginBlockSec = Number(getEnv('AUTH_LOGIN_BLOCK_SEC', '300'));
   if (!Number.isFinite(loginBlockAfter) || loginBlockAfter < 3) {
     throw new Error('AUTH_LOGIN_BLOCK_AFTER inseguro en produccion');
   }

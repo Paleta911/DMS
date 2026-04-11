@@ -13,19 +13,23 @@ export class AreaCodesQueryService {
   async findAll(params?: {
     q?: string;
     includeInactive?: boolean;
+    status?: 'active' | 'inactive' | 'all';
     page?: number;
     limit?: number;
   }) {
     const q = params?.q?.trim();
-    const includeInactive = params?.includeInactive ?? false;
+    const status =
+      params?.status ?? (params?.includeInactive ? 'all' : 'active');
     const page = params?.page ?? 1;
     const limit = params?.limit ?? 20;
     const qb = this.areaCodeRepo
       .createQueryBuilder('areaCode')
       .orderBy('areaCode.code', 'ASC');
 
-    if (!includeInactive) {
+    if (status === 'active') {
       qb.andWhere('areaCode.activo = :activo', { activo: true });
+    } else if (status === 'inactive') {
+      qb.andWhere('areaCode.activo = :activo', { activo: false });
     }
 
     if (q) {
@@ -35,7 +39,7 @@ export class AreaCodesQueryService {
       );
     }
 
-    if (params?.page || params?.limit || q || includeInactive) {
+    if (params?.page || params?.limit || q || status !== 'active') {
       const skip = (page - 1) * limit;
       const [items, total] = await qb.skip(skip).take(limit).getManyAndCount();
       return { items, total, page, limit };

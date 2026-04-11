@@ -10,6 +10,8 @@ export type ApiErrorResponse = {
   message: string;
   errors?: string[];
   code?: string;
+  remainingSec?: number;
+  blockedUntil?: string;
   path: string;
   requestId?: string;
   timestamp: string;
@@ -154,6 +156,8 @@ export function buildApiErrorResponse(params: {
   error?: string;
   errors?: string[];
   code?: string;
+  remainingSec?: number;
+  blockedUntil?: string;
 }): ApiErrorResponse {
   return {
     statusCode: params.statusCode,
@@ -163,6 +167,10 @@ export function buildApiErrorResponse(params: {
       ? { errors: params.errors.map((item) => normalizeApiMessage(item)) }
       : {}),
     ...(params.code ? { code: params.code } : {}),
+    ...(typeof params.remainingSec === 'number'
+      ? { remainingSec: params.remainingSec }
+      : {}),
+    ...(params.blockedUntil ? { blockedUntil: params.blockedUntil } : {}),
     path: params.request.originalUrl ?? params.request.url ?? '/',
     ...(params.request.requestId ? { requestId: params.request.requestId } : {}),
     timestamp: new Date().toISOString(),

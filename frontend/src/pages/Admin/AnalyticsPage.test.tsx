@@ -61,12 +61,12 @@ describe('AnalyticsPage', () => {
       permissionRequests: {
         totalPending: 4,
         byStatus: [{ label: 'PENDING', count: 4 }],
-        byType: [{ label: 'AREAS', count: 3 }],
+        byType: [{ label: 'PERMISSIONS', count: 3 }],
       },
       audit: {
         totalLast24h: 28,
         accessDeniedLast24h: 2,
-        topActionsLast7d: [{ label: 'SEARCH_QUERY', count: 12 }],
+        topActionsLast7d: [{ label: 'AUTH_LOGIN_SUCCESS', count: 12 }],
       },
       search: {
         elasticStatus: 'up',
@@ -109,5 +109,9 @@ describe('AnalyticsPage', () => {
     expect(await screen.findByText('120')).toBeInTheDocument();
     expect(await screen.findByText('RC')).toBeInTheDocument();
     expect(await screen.findByText('Consultas Elastic')).toBeInTheDocument();
+    expect((await screen.findAllByText('Aprobado')).length).toBeGreaterThan(0);
+    expect(await screen.findByText('Permisos')).toBeInTheDocument();
+    expect(await screen.findByText('Inicio de sesión exitoso')).toBeInTheDocument();
+    expect(await screen.findByText('Elastic: activo')).toBeInTheDocument();
   });
 });

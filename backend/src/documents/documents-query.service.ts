@@ -4,6 +4,22 @@ import { Repository } from 'typeorm';
 import { Document } from './document.entity';
 import { Version } from '../versions/version.entity';
 import { DocumentsAccessService } from './documents-access.service';
+import { DocumentStatus } from './document-status.enum';
+import { DocumentVisibilityService } from '../document-visibility/document-visibility.service';
+
+function normalizeDateRangeStart(value?: string) {
+  if (!value) {
+    return undefined;
+  }
+  return new Date(`${value}T00:00:00.000Z`);
+}
+
+function normalizeDateRangeEnd(value?: string) {
+  if (!value) {
+    return undefined;
+  }
+  return new Date(`${value}T23:59:59.999Z`);
+}
 
 @Injectable()
 export class DocumentsQueryService {
@@ -13,6 +29,7 @@ export class DocumentsQueryService {
     @InjectRepository(Version)
     private readonly versionRepo: Repository<Version>,
     private readonly documentsAccessService: DocumentsAccessService,
+    private readonly documentVisibilityService: DocumentVisibilityService,
   ) {}
 
   async list(params: {
@@ -21,8 +38,12 @@ export class DocumentsQueryService {
     categoryId?: string;
     documentTypeCode?: string;
     areaCode?: string;
+    status?: DocumentStatus;
+    from?: string;
+    to?: string;
     sortByName?: 'az' | 'za';
     allowedAreaCodes?: string[] | null;
+    includeHiddenStatuses?: boolean;
   }) {
     const page = params.page ?? 1;
     const limit = params.limit ?? 20;
@@ -46,6 +67,14 @@ export class DocumentsQueryService {
       });
     }
 
+    const visibleStatuses =
+      await this.documentVisibilityService.getVisibleStatusesForActor(
+        params.includeHiddenStatuses,
+      );
+    if (!params.includeHiddenStatuses && visibleStatuses.length === 0) {
+      return { items: [], total: 0, page, limit };
+    }
+
     if (params.categoryId) {
       qb.andWhere('category.id = :categoryId', {
         categoryId: Number(params.categoryId),
@@ -62,6 +91,33 @@ export class DocumentsQueryService {
       qb.andWhere('areaCode.code = :areaCode', {
         areaCode: params.areaCode.toUpperCase(),
       });
+    }
+
+    if (params.status) {
+      if (
+        !params.includeHiddenStatuses &&
+        !visibleStatuses.includes(params.status)
+      ) {
+        return { items: [], total: 0, page, limit };
+      }
+      qb.andWhere('document.status = :status', {
+        status: params.status,
+      });
+    } else if (!params.includeHiddenStatuses) {
+      qb.andWhere('document.status IN (:...visibleStatuses)', {
+        visibleStatuses,
+      });
+    }
+
+    const from = normalizeDateRangeStart(params.from);
+    const to = normalizeDateRangeEnd(params.to);
+
+    if (from) {
+      qb.andWhere('document.updatedAt >= :from', { from });
+    }
+
+    if (to) {
+      qb.andWhere('document.updatedAt <= :to', { to });
     }
 
     if (params.sortByName === 'az') {
@@ -114,6 +170,7 @@ export class DocumentsQueryService {
     id: number,
     versionsLimit = 5,
     allowedAreaCodes?: string[] | null,
+    includeHiddenStatuses = false,
   ) {
     const document = await this.documentsAccessService.ensureAccess(
       id,
@@ -124,6 +181,7 @@ export class DocumentsQueryService {
         documentType: true,
         createdBy: true,
       },
+      includeHiddenStatuses,
     );
 
     const versions = await this.versionRepo.find({
@@ -140,10 +198,16 @@ export class DocumentsQueryService {
   async findVersionsByDocument(
     documentId: number,
     allowedAreaCodes?: string[] | null,
+    includeHiddenStatuses = false,
   ) {
-    await this.documentsAccessService.ensureAccess(documentId, allowedAreaCodes, {
-      areaCode: true,
-    });
+    await this.documentsAccessService.ensureAccess(
+      documentId,
+      allowedAreaCodes,
+      {
+        areaCode: true,
+      },
+      includeHiddenStatuses,
+    );
     return this.versionRepo.find({
       where: { document: { id: documentId } },
       order: { createdAt: 'DESC' },

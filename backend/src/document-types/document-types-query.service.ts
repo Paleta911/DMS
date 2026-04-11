@@ -13,19 +13,23 @@ export class DocumentTypesQueryService {
   async findAll(params?: {
     q?: string;
     includeInactive?: boolean;
+    status?: 'active' | 'inactive' | 'all';
     page?: number;
     limit?: number;
   }) {
     const q = params?.q?.trim();
-    const includeInactive = params?.includeInactive ?? false;
+    const status =
+      params?.status ?? (params?.includeInactive ? 'all' : 'active');
     const page = params?.page ?? 1;
     const limit = params?.limit ?? 20;
     const qb = this.documentTypeRepo
       .createQueryBuilder('documentType')
       .orderBy('documentType.code', 'ASC');
 
-    if (!includeInactive) {
+    if (status === 'active') {
       qb.andWhere('documentType.activo = :activo', { activo: true });
+    } else if (status === 'inactive') {
+      qb.andWhere('documentType.activo = :activo', { activo: false });
     }
 
     if (q) {
@@ -35,7 +39,7 @@ export class DocumentTypesQueryService {
       );
     }
 
-    if (params?.page || params?.limit || q || includeInactive) {
+    if (params?.page || params?.limit || q || status !== 'active') {
       const skip = (page - 1) * limit;
       const [items, total] = await qb.skip(skip).take(limit).getManyAndCount();
       return { items, total, page, limit };

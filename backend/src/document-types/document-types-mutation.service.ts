@@ -47,6 +47,14 @@ export class DocumentTypesMutationService {
     if (!entity) {
       throw new NotFoundException('Tipo no encontrado');
     }
+    if (typeof payload.code === 'string') {
+      const nextCode = payload.code.toUpperCase().trim();
+      const existing = await this.documentTypeRepo.findOne({ where: { code: nextCode } });
+      if (existing && existing.id !== entity.id) {
+        throw new ConflictException('Ya existe un tipo con ese código');
+      }
+      entity.code = nextCode;
+    }
     if (typeof payload.nombreLargo === 'string') {
       entity.nombreLargo = payload.nombreLargo.trim();
     }
@@ -83,5 +91,28 @@ export class DocumentTypesMutationService {
     entity.activo = false;
     await this.documentTypeRepo.save(entity);
     return { success: true, deactivated: true };
+  }
+
+  async hardDelete(id: number) {
+    const entity = await this.documentTypeRepo.findOne({ where: { id } });
+    if (!entity) {
+      throw new NotFoundException('Tipo no encontrado');
+    }
+
+    await this.documentRepo
+      .createQueryBuilder()
+      .update(Document)
+      .set({ documentType: null })
+      .where('documentTypeId = :id', { id })
+      .execute();
+
+    await this.documentTypeRepo.delete(id);
+    return {
+      success: true,
+      deleted: true,
+      id: entity.id,
+      code: entity.code,
+      nombreLargo: entity.nombreLargo,
+    };
   }
 }

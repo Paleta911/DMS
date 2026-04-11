@@ -11,6 +11,8 @@ import type { AuthUser } from '../types/auth';
 import { authLogin } from '../api/endpoints/auth';
 import { usersMe } from '../api/endpoints/users';
 import {
+  clearLoginBlockedState,
+  clearPendingVerificationEmail,
   clearAuthStorage,
   getRefreshToken,
   getStoredUser,
@@ -73,6 +75,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(async (email: string, password: string) => {
     const response = await authLogin({ email, password });
+    clearLoginBlockedState();
+    clearPendingVerificationEmail();
     setToken(response.accessToken);
     setTokenState(response.accessToken);
     setRefreshToken(response.refreshToken);

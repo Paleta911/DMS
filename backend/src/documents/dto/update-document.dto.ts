@@ -1,5 +1,13 @@
 import { Transform } from 'class-transformer';
-import { IsInt, IsOptional, IsString, Min, MinLength, ValidateIf } from 'class-validator';
+import {
+  IsBoolean,
+  IsInt,
+  IsOptional,
+  IsString,
+  Min,
+  MinLength,
+  ValidateIf,
+} from 'class-validator';
 
 export class UpdateDocumentDto {
   @IsOptional()
@@ -12,6 +20,13 @@ export class UpdateDocumentDto {
   @IsInt()
   @Min(1)
   categoryId?: number | null;
+
+  @IsOptional()
+  @Transform(({ value }) =>
+    value === true || value === 'true' || value === 1 || value === '1',
+  )
+  @IsBoolean()
+  isInternal?: boolean;
 
   @IsOptional()
   @IsString()

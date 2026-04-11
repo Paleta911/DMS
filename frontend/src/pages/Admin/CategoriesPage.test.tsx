@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
     categoriesCreate: vi.fn(),
     categoriesUpdate: vi.fn(),
     categoriesDelete: vi.fn(),
+    categoriesHardDelete: vi.fn(),
   },
 }));
 
@@ -41,11 +42,13 @@ vi.mock('../../api/endpoints/categories', () => mocks.api);
 describe('CategoriesPage', () => {
   beforeEach(() => {
     queryClient.clear();
+    window.localStorage.clear();
     mocks.notify.mockReset();
     mocks.api.adminCategoriesList.mockReset();
     mocks.api.categoriesCreate.mockReset();
     mocks.api.categoriesUpdate.mockReset();
     mocks.api.categoriesDelete.mockReset();
+    mocks.api.categoriesHardDelete.mockReset();
 
     mocks.auth.isAdmin = true;
     mocks.auth.user = {
@@ -67,6 +70,7 @@ describe('CategoriesPage', () => {
     mocks.api.categoriesCreate.mockResolvedValue({ id: 3, nombre: 'Nueva' });
     mocks.api.categoriesUpdate.mockResolvedValue({ id: 1, nombre: 'Calidad SIG', activo: true });
     mocks.api.categoriesDelete.mockResolvedValue({ success: true });
+    mocks.api.categoriesHardDelete.mockResolvedValue({ success: true });
   });
 
   it('muestra acceso denegado si el usuario no es admin', () => {
@@ -99,7 +103,7 @@ describe('CategoriesPage', () => {
     });
   });
 
-  it('edita y elimina categorías existentes', async () => {
+  it('edita, desactiva y elimina categorías existentes', async () => {
     renderWithProviders(<CategoriesPage />);
 
     await waitFor(() => expect(mocks.api.adminCategoriesList).toHaveBeenCalled());
@@ -114,7 +118,6 @@ describe('CategoriesPage', () => {
 
     await waitFor(() => {
       expect(mocks.api.categoriesUpdate).toHaveBeenCalledWith(1, {
-        id: 1,
         nombre: 'Calidad SIG',
       });
       expect(mocks.notify).toHaveBeenCalledWith('Categoría actualizada', 'success');
@@ -128,5 +131,48 @@ describe('CategoriesPage', () => {
       expect(mocks.api.categoriesDelete).toHaveBeenCalledWith(1);
       expect(mocks.notify).toHaveBeenCalledWith('Categoría desactivada', 'success');
     });
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Eliminar' })[0]);
+    const hardDeleteDialog = screen.getByRole('dialog', { name: 'Eliminar categoría' });
+    expect(hardDeleteDialog).toHaveTextContent(
+      'Se eliminará definitivamente la categoría Calidad. Los documentos que la usen quedarán sin categoría asignada.',
+    );
+    fireEvent.click(within(hardDeleteDialog).getByRole('button', { name: 'Eliminar' }));
+
+    await waitFor(() => {
+      expect(mocks.api.categoriesHardDelete).toHaveBeenCalledWith(1);
+      expect(mocks.notify).toHaveBeenCalledWith('Categoría eliminada', 'success');
+    });
+  });
+
+  it('recupera filtros guardados por usuario', async () => {
+    window.localStorage.setItem(
+      'admin-categories-filters:admin@local.com',
+      JSON.stringify({
+        lastUsed: {
+          search: 'Producción',
+          statusFilter: 'inactive',
+          page: 2,
+          limit: 24,
+        },
+        views: [],
+      }),
+    );
+
+    renderWithProviders(<CategoriesPage />);
+
+    await waitFor(() => {
+      expect(mocks.api.adminCategoriesList).toHaveBeenCalledWith({
+        q: 'Producción',
+        includeInactive: false,
+        status: 'inactive',
+        page: 2,
+        limit: 24,
+      });
+    });
+
+    expect(screen.getByDisplayValue('Producción')).toBeInTheDocument();
+    expect(screen.getByLabelText('Estado')).toHaveValue('inactive');
+    expect(screen.getByLabelText('Límite')).toHaveValue('24');
   });
 });

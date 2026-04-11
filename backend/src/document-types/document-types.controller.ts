@@ -37,6 +37,7 @@ export class DocumentTypesController {
     return this.documentTypesService.findAll({
       q: query.q,
       includeInactive: query.includeInactive,
+      status: query.status,
       page: query.page,
       limit: query.limit,
     });
@@ -86,6 +87,21 @@ export class DocumentTypesController {
       action: 'DOCUMENT_TYPE_DEACTIVATED',
       resourceType: 'document_type',
       resourceId: id,
+    });
+    return result;
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.Admin)
+  @Delete(':id/permanent')
+  @ApiBearerAuth()
+  async hardDelete(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
+    const result = await this.documentTypesService.hardDelete(id);
+    await this.httpAuditService.logFromRequest(req, {
+      action: 'DOCUMENT_TYPE_DELETED',
+      resourceType: 'document_type',
+      resourceId: id,
+      meta: { code: result.code, nombreLargo: result.nombreLargo },
     });
     return result;
   }

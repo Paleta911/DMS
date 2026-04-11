@@ -13,6 +13,8 @@ const mocks = vi.hoisted(() => ({
   api: {
     documentsList: vi.fn(),
     uploadDocument: vi.fn(),
+    getDocumentVisibilityPolicy: vi.fn(),
+    updateDocumentVisibilityPolicy: vi.fn(),
     searchQuery: vi.fn(),
     categoriesList: vi.fn(),
     documentTypesList: vi.fn(),
@@ -40,6 +42,8 @@ vi.mock('../components/ToastProvider', () => ({
 vi.mock('../api/endpoints/documents', () => ({
   documentsList: mocks.api.documentsList,
   uploadDocument: mocks.api.uploadDocument,
+  getDocumentVisibilityPolicy: mocks.api.getDocumentVisibilityPolicy,
+  updateDocumentVisibilityPolicy: mocks.api.updateDocumentVisibilityPolicy,
 }));
 
 vi.mock('../api/endpoints/search', () => ({
@@ -57,9 +61,12 @@ vi.mock('../api/endpoints/types', () => ({
 
 describe('DocumentsPage', () => {
   beforeEach(() => {
+    window.localStorage.clear();
     mocks.notify.mockReset();
     mocks.api.documentsList.mockReset();
     mocks.api.uploadDocument.mockReset();
+    mocks.api.getDocumentVisibilityPolicy.mockReset();
+    mocks.api.updateDocumentVisibilityPolicy.mockReset();
     mocks.api.searchQuery.mockReset();
     mocks.api.categoriesList.mockReset();
     mocks.api.documentTypesList.mockReset();
@@ -118,23 +125,32 @@ describe('DocumentsPage', () => {
     mocks.api.categoriesList.mockResolvedValue([{ id: 1, nombre: 'Calidad' }]);
     mocks.api.documentTypesList.mockResolvedValue([{ id: 1, code: 'MAN', nombreLargo: 'Manual', activo: true }]);
     mocks.api.areaCodesList.mockResolvedValue([{ id: 1, code: 'FA', nombre: 'Finanzas', activo: true }]);
+    mocks.api.getDocumentVisibilityPolicy.mockResolvedValue({
+      draftVisibleToUsers: true,
+      inReviewVisibleToUsers: true,
+      approvedVisibleToUsers: true,
+      obsoleteVisibleToUsers: true,
+      updatedAt: '2026-04-10T00:00:00.000Z',
+    });
   });
 
-  it('muestra aviso claro cuando el usuario no tiene áreas asignadas', async () => {
+  it('permite ver documentos aunque el usuario no tenga áreas asignadas', async () => {
     mocks.auth.user = {
       ...mocks.auth.user!,
       allowedAreaCodes: [],
     };
-    mocks.api.documentsList.mockResolvedValue({ items: [], total: 0 });
 
     renderWithProviders(<DocumentsPage />);
 
-    expect(await screen.findByText('Sin áreas asignadas')).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        'Aún no tienes áreas asignadas. No verás documentos hasta que un administrador te asigne al menos un área.',
-      ),
-    ).toBeInTheDocument();
+    expect((await screen.findAllByText('Manual de calidad')).length).toBeGreaterThan(0);
+    expect(screen.queryByText('Sin áreas asignadas')).not.toBeInTheDocument();
+  });
+
+  it('deshabilita subir documento cuando el usuario no tiene permiso de carga', async () => {
+    renderWithProviders(<DocumentsPage />);
+
+    const uploadButton = await screen.findByRole('button', { name: /subir documento/i });
+    expect(uploadButton).toBeDisabled();
   });
 
   it('activa el modo de búsqueda avanzada y dispara la consulta filtrada', async () => {
@@ -148,11 +164,102 @@ describe('DocumentsPage', () => {
         categoryId: undefined,
         documentTypeCode: undefined,
         areaCode: undefined,
+        status: undefined,
+        from: undefined,
+        to: undefined,
         page: 1,
         limit: 20,
       });
     });
 
     expect(await screen.findByText('Búsqueda avanzada activa')).toBeInTheDocument();
+  });
+
+  it('aplica filtros de estado y fechas en el listado normal', async () => {
+    renderWithProviders(<DocumentsPage />);
+
+    fireEvent.change(await screen.findByLabelText('Estado'), {
+      target: { value: 'APPROVED' },
+    });
+    fireEvent.change(screen.getByLabelText('Fecha desde'), {
+      target: { value: '2026-03-01' },
+    });
+    fireEvent.change(screen.getByLabelText('Fecha hasta'), {
+      target: { value: '2026-03-31' },
+    });
+
+    await waitFor(() => {
+      expect(mocks.api.documentsList).toHaveBeenLastCalledWith({
+        page: 1,
+        limit: 20,
+        categoryId: '',
+        documentTypeCode: '',
+        areaCode: '',
+        status: 'APPROVED',
+        from: '2026-03-01',
+        to: '2026-03-31',
+        sortByName: '',
+      });
+    });
+  });
+
+  it('muestra controles globales de visibilidad para admins', async () => {
+    mocks.auth.isAdmin = true;
+    mocks.auth.user = {
+      ...mocks.auth.user!,
+      role: 'admin',
+    };
+
+    renderWithProviders(<DocumentsPage />);
+
+    expect(await screen.findByText('Visibilidad global de documentos')).toBeInTheDocument();
+    expect(mocks.api.getDocumentVisibilityPolicy).toHaveBeenCalled();
+    expect(
+      await screen.findByRole('switch', { name: 'Visibilidad de Borradores' }),
+    ).toBeInTheDocument();
+  });
+
+  it('restaura los filtros del usuario al salir y volver a la ruta', async () => {
+    const firstRender = renderWithProviders(<DocumentsPage />);
+
+    fireEvent.change(screen.getByLabelText('Buscar'), {
+      target: { value: 'manual' },
+    });
+    fireEvent.change(await screen.findByLabelText('Estado'), {
+      target: { value: 'APPROVED' },
+    });
+    fireEvent.change(screen.getByLabelText('Fecha desde'), {
+      target: { value: '2026-03-01' },
+    });
+    fireEvent.change(screen.getByLabelText('Fecha hasta'), {
+      target: { value: '2026-03-31' },
+    });
+    fireEvent.change(screen.getByLabelText('Límite'), {
+      target: { value: '10' },
+    });
+
+    await waitFor(() => {
+      expect(mocks.api.searchQuery).toHaveBeenCalledWith({
+        q: 'manual',
+        categoryId: undefined,
+        documentTypeCode: undefined,
+        areaCode: undefined,
+        status: 'APPROVED',
+        from: '2026-03-01',
+        to: '2026-03-31',
+        page: 1,
+        limit: 10,
+      });
+    });
+
+    firstRender.unmount();
+
+    renderWithProviders(<DocumentsPage />);
+
+    expect(await screen.findByDisplayValue('manual')).toBeInTheDocument();
+    expect((screen.getByLabelText('Estado') as HTMLSelectElement).value).toBe('APPROVED');
+    expect(screen.getByDisplayValue('2026-03-01')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('2026-03-31')).toBeInTheDocument();
+    expect((screen.getByLabelText('Límite') as HTMLSelectElement).value).toBe('10');
   });
 });

@@ -15,6 +15,8 @@ export type RegistrationRecord = {
   telefono?: string | null;
   fechaNacimiento?: string | null;
   status: RegistrationStatus;
+  areaLabel?: string | null;
+  requestedAreaNombre?: string | null;
   registeredAt?: string;
   verifiedAt?: string | null;
   sendStatus?: string | null;
@@ -45,6 +47,11 @@ export async function adminRegistrationReject(id: number, reason?: string) {
   return data;
 }
 
+export async function adminRegistrationRestore(id: number) {
+  const { data } = await http.post(`/admin/registrations/${id}/restore`);
+  return data;
+}
+
 export async function adminRegistrationResend(id: number) {
   const { data } = await http.post(`/admin/registrations/${id}/resend-code`);
   return data;
@@ -53,6 +60,16 @@ export async function adminRegistrationResend(id: number) {
 export async function adminRegistrationForceVerify(id: number) {
   const { data } = await http.post(`/admin/registrations/${id}/force-verify`);
   return data;
+}
+
+export async function adminRegistrationDelete(id: number) {
+  const { data } = await http.delete(`/admin/registrations/${id}`);
+  return data;
+}
+
+export async function adminRegistrationDeletePermanent(id: number) {
+  const { data } = await http.delete(`/admin/registrations/${id}/permanent`);
+  return data as { success: true };
 }
 
 export async function adminRegistrationsExportCsv(params?: {

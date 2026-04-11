@@ -15,9 +15,11 @@ const AppShell = lazy(() =>
 const LoginPage = lazy(() => import('../pages/LoginPage'));
 const RegisterPage = lazy(() => import('../pages/RegisterPage'));
 const VerifyEmailPage = lazy(() => import('../pages/VerifyEmailPage'));
+const RouteErrorPage = lazy(() => import('../pages/RouteErrorPage'));
 const DocumentsPage = lazy(() => import('../pages/DocumentsPage'));
 const DocumentDetailPage = lazy(() => import('../pages/DocumentDetailPage'));
 const CategoriesPage = lazy(() => import('../pages/Admin/CategoriesPage'));
+const UsersPage = lazy(() => import('../pages/Admin/UsersPage'));
 const UsersAreasPage = lazy(() => import('../pages/Admin/UsersAreasPage'));
 const AuditLogsPage = lazy(() => import('../pages/Admin/AuditLogsPage'));
 const AnalyticsPage = lazy(() => import('../pages/Admin/AnalyticsPage'));
@@ -49,19 +51,24 @@ export const router = createBrowserRouter([
   {
     path: '/login',
     element: withSuspense(<LoginPage />),
+    errorElement: withSuspense(<RouteErrorPage />),
   },
   {
     path: '/register',
     element: withSuspense(<RegisterPage />),
+    errorElement: withSuspense(<RouteErrorPage />),
   },
   {
     path: '/verify-email',
     element: withSuspense(<VerifyEmailPage />),
+    errorElement: withSuspense(<RouteErrorPage />),
   },
   {
+    errorElement: withSuspense(<RouteErrorPage />),
     element: withSuspense(<ProtectedRoute />),
     children: [
       {
+        errorElement: withSuspense(<RouteErrorPage />),
         element: withSuspense(<AppShell />),
         children: [
           { path: '/', element: withSuspense(<DocumentsPage />) },
@@ -73,6 +80,7 @@ export const router = createBrowserRouter([
           { path: '/forbidden', element: withSuspense(<ForbiddenPage />) },
           { path: '/admin/categories', element: withSuspense(<CategoriesPage />) },
           { path: '/admin/types-areas', element: withSuspense(<TypesAreasPage />) },
+          { path: '/admin/users', element: withSuspense(<UsersPage />) },
           { path: '/admin/users-areas', element: withSuspense(<UsersAreasPage />) },
           { path: '/admin/audit-logs', element: withSuspense(<AuditLogsPage />) },
           { path: '/admin/analytics', element: withSuspense(<AnalyticsPage />) },
@@ -88,5 +96,10 @@ export const router = createBrowserRouter([
         ],
       },
     ],
+  },
+  {
+    path: '*',
+    element: withSuspense(<RouteErrorPage />),
+    errorElement: withSuspense(<RouteErrorPage />),
   },
 ]);

@@ -46,6 +46,15 @@ export class RegistrationsService {
     return this.actionService.reject(params);
   }
 
+  async restore(params: {
+    id: number;
+    adminId: number;
+    ip?: string;
+    userAgent?: string;
+  }) {
+    return this.actionService.restore(params);
+  }
+
   async resendCode(params: {
     id: number;
     adminId: number;
@@ -62,5 +71,23 @@ export class RegistrationsService {
     userAgent?: string;
   }) {
     return this.actionService.forceVerify(params);
+  }
+
+  async remove(params: {
+    id: number;
+    adminId: number;
+    ip?: string;
+    userAgent?: string;
+  }) {
+    return this.actionService.remove(params);
+  }
+
+  async removePermanent(params: {
+    id: number;
+    adminId: number;
+    ip?: string;
+    userAgent?: string;
+  }) {
+    return this.actionService.removePermanent(params);
   }
 }

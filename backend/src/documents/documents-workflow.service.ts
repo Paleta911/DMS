@@ -8,6 +8,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from '../users/user.entity';
 import { assertAssignmentEligibility } from '../users/user-access.policy';
+import { SearchService } from '../search/search.service';
 import {
   ApprovalDecision,
   ApprovalStep,
@@ -25,6 +26,7 @@ export class DocumentsWorkflowService {
     private readonly approvalRepo: Repository<DocumentApproval>,
     @InjectRepository(User)
     private readonly userRepo: Repository<User>,
+    private readonly searchService: SearchService,
   ) {}
 
   async ensureWorkflowForUpload(
@@ -111,6 +113,7 @@ export class DocumentsWorkflowService {
     await this.resetApprovals(document);
     document.status = DocumentStatus.InReview;
     await this.documentRepo.save(document);
+    this.searchService.enqueueIndexDocument(document.id);
     return this.getWorkflow(documentId);
   }
 
@@ -143,12 +146,14 @@ export class DocumentsWorkflowService {
     if (params.decision === ApprovalDecision.Rejected) {
       document.status = DocumentStatus.Draft;
       await this.documentRepo.save(document);
+      this.searchService.enqueueIndexDocument(document.id);
     } else if (
       params.step === ApprovalStep.Aprobo &&
       params.decision === ApprovalDecision.Approved
     ) {
       document.status = DocumentStatus.Approved;
       await this.documentRepo.save(document);
+      this.searchService.enqueueIndexDocument(document.id);
     }
 
     return this.getWorkflow(params.documentId);
@@ -163,6 +168,7 @@ export class DocumentsWorkflowService {
     }
     document.status = DocumentStatus.Obsolete;
     await this.documentRepo.save(document);
+    this.searchService.enqueueIndexDocument(document.id);
     return this.getWorkflow(documentId);
   }
 
@@ -228,4 +234,3 @@ export class DocumentsWorkflowService {
     await this.documentRepo.save(document);
   }
 }
-

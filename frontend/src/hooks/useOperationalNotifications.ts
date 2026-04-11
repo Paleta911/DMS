@@ -117,6 +117,23 @@ export function useOperationalNotifications(user: AuthUser | null, isAdmin: bool
     refetchIntervalInBackground: false,
   });
 
+  const customAreaRegistrationsQuery = useQuery({
+    queryKey: queryKeys.registrations.list({
+      page: 1,
+      limit: 25,
+      scope: 'notifications-custom-area',
+    }),
+    queryFn: () =>
+      adminRegistrationsList({
+        page: 1,
+        limit: 25,
+      }),
+    enabled: Boolean(user?.isSuperAdmin),
+    staleTime: 30000,
+    refetchInterval,
+    refetchIntervalInBackground: false,
+  });
+
   const adminRequestsQuery = useQuery({
     queryKey: queryKeys.permissions.adminList({
       status: 'PENDING',
@@ -195,9 +212,25 @@ export function useOperationalNotifications(user: AuthUser | null, isAdmin: bool
           `admin-registrations:${total}`,
           'Hay registros pendientes de aprobación',
           `${total} registro(s) esperan validación de super admin.`,
-          '/admin/registrations',
+          '/admin/users',
           'info',
           now,
+        ),
+      );
+    }
+
+    for (const item of customAreaRegistrationsQuery.data?.items ?? []) {
+      if (!item.requestedAreaNombre || item.status === 'REJECTED') {
+        continue;
+      }
+      results.push(
+        createNotification(
+          `admin-registration-custom-area:${item.id}:${item.requestedAreaNombre}`,
+          'Usuario solicitó un área no listada',
+          `${item.email} indicó el área "${item.requestedAreaNombre}".`,
+          '/admin/users',
+          'info',
+          item.registeredAt ?? now,
         ),
       );
     }
@@ -219,6 +252,7 @@ export function useOperationalNotifications(user: AuthUser | null, isAdmin: bool
     return results.sort((left, right) => right.createdAt.localeCompare(left.createdAt));
   }, [
     adminRequestsQuery.data?.total,
+    customAreaRegistrationsQuery.data?.items,
     meQuery.data,
     myRequestsQuery.data?.items,
     registrationsQuery.data?.total,
@@ -250,6 +284,7 @@ export function useOperationalNotifications(user: AuthUser | null, isAdmin: bool
       meQuery.isLoading ||
       myRequestsQuery.isLoading ||
       registrationsQuery.isLoading ||
+      customAreaRegistrationsQuery.isLoading ||
       adminRequestsQuery.isLoading,
     isUnread: (signature: string) => !seen.has(signature),
     markAsRead,

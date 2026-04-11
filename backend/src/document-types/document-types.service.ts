@@ -13,6 +13,7 @@ export class DocumentTypesService {
   findAll(params?: {
     q?: string;
     includeInactive?: boolean;
+    status?: 'active' | 'inactive' | 'all';
     page?: number;
     limit?: number;
   }) {
@@ -29,5 +30,9 @@ export class DocumentTypesService {
 
   async remove(id: number) {
     return this.mutationService.remove(id);
+  }
+
+  async hardDelete(id: number) {
+    return this.mutationService.hardDelete(id);
   }
 }

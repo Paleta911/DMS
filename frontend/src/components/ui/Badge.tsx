@@ -4,16 +4,16 @@ import { FAST_TRANSITION, SCALE_FADE_VARIANTS } from './Motion';
 import { translateStatus } from '../../utils/labels';
 
 const variants: Record<string, string> = {
-  DRAFT: 'bg-brand-muted/30 text-brand-text',
-  IN_REVIEW: 'bg-bsm-stTropaz/15 text-brand-text',
-  APPROVED: 'bg-bsm-hippieGreen/20 text-brand-text',
-  OBSOLETE: 'bg-bsm-ming/20 text-brand-text',
-  DB_UP: 'bg-bsm-hippieGreen/20 text-brand-text',
-  DB_DOWN: 'bg-brand-muted/35 text-brand-text',
-  ES_UP: 'bg-bsm-citron/25 text-brand-text',
-  ES_DOWN: 'bg-brand-muted/35 text-brand-text',
-  WARN: 'bg-bsm-sanMarino/15 text-brand-text',
-  default: 'bg-brand-muted/30 text-brand-text',
+  DRAFT: 'border border-slate-600 bg-slate-700 text-white shadow-sm',
+  IN_REVIEW: 'border border-amber-700 bg-amber-600 text-white shadow-sm',
+  APPROVED: 'border border-emerald-700 bg-emerald-600 text-white shadow-sm',
+  OBSOLETE: 'border border-rose-700 bg-rose-600 text-white shadow-sm',
+  DB_UP: 'border border-emerald-700 bg-emerald-600 text-white shadow-sm',
+  DB_DOWN: 'border border-rose-700 bg-rose-600 text-white shadow-sm',
+  ES_UP: 'border border-lime-700 bg-lime-600 text-white shadow-sm',
+  ES_DOWN: 'border border-rose-700 bg-rose-600 text-white shadow-sm',
+  WARN: 'border border-amber-700 bg-amber-600 text-white shadow-sm',
+  default: 'border border-slate-600 bg-slate-700 text-white shadow-sm',
 };
 
 export function StatusBadge({ status }: { status: string }) {

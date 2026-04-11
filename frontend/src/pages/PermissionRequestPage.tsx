@@ -4,13 +4,10 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import {
-  areaRequestsCreate,
   permissionRequestsCreate,
   permissionRequestsMine,
 } from '../api/endpoints/permissionRequests';
-import { areaCodesListPaged } from '../api/endpoints/types';
 import { Button } from '../components/ui/Button';
-import { Input } from '../components/ui/Input';
 import { Textarea } from '../components/ui/Textarea';
 import { useToast } from '../components/ToastProvider';
 import { PageContainer } from '../components/layout/PageContainer';
@@ -28,7 +25,6 @@ import { queryClient } from '../app/queryClient';
 import { invalidateMyPermissionRequests } from '../app/queryInvalidation';
 import { queryKeys } from '../app/queryKeys';
 import { ResultsToolbar } from '../components/layout/ResultsToolbar';
-import { useDebouncedValue } from '../hooks/useDebouncedValue';
 import {
   getPermissionRequestDetail,
   getPermissionRequestTypeLabel,
@@ -57,23 +53,13 @@ const schema = z.object({
   comment: z.string().optional(),
 });
 
-const areaSchema = z.object({
-  areaCodes: z.array(z.string()).min(1, 'Selecciona al menos un área'),
-  comment: z.string().optional(),
-});
-
 type FormValues = z.infer<typeof schema>;
-type AreaFormValues = z.infer<typeof areaSchema>;
 
 export default function PermissionRequestPage() {
   const { user } = useAuth();
   const { notify } = useToast();
-  const [areaSearch, setAreaSearch] = useState('');
-  const [areaPage, setAreaPage] = useState(1);
-  const [areaLimit, setAreaLimit] = useState(12);
   const [historyPage, setHistoryPage] = useState(1);
   const [historyLimit, setHistoryLimit] = useState(10);
-  const debouncedAreaSearch = useDebouncedValue(areaSearch);
   const listQuery = useQuery({
     queryKey: queryKeys.permissions.mine({
       page: historyPage,
@@ -99,21 +85,6 @@ export default function PermissionRequestPage() {
       }),
     placeholderData: (previousData) => previousData,
   });
-  const areasQuery = useQuery({
-    queryKey: queryKeys.catalogs.areaCodesList({
-      q: debouncedAreaSearch,
-      page: areaPage,
-      limit: areaLimit,
-      scope: 'permission-requests',
-    }),
-    queryFn: () =>
-      areaCodesListPaged({
-        q: debouncedAreaSearch.trim() || undefined,
-        page: areaPage,
-        limit: areaLimit,
-      }),
-    placeholderData: (previousData) => previousData,
-  });
 
   const createMutation = useMutation({
     mutationFn: (payload: { permissions: PermissionKey[]; comment?: string }) =>
@@ -124,18 +95,6 @@ export default function PermissionRequestPage() {
     },
     onError: (error: any) => {
       notify(getApiErrorMessage(error, 'Error al solicitar permisos'), 'error');
-    },
-  });
-
-  const createAreaMutation = useMutation({
-    mutationFn: (payload: { areaCodes: string[]; comment?: string }) =>
-      areaRequestsCreate(payload),
-    onSuccess: () => {
-      notify('Solicitud de áreas enviada', 'success');
-      invalidateMyPermissionRequests(queryClient);
-    },
-    onError: (error: any) => {
-      notify(getApiErrorMessage(error, 'Error al solicitar áreas'), 'error');
     },
   });
 
@@ -150,26 +109,11 @@ export default function PermissionRequestPage() {
     defaultValues: { permissions: [], comment: '' },
   });
 
-  const {
-    register: registerAreas,
-    handleSubmit: handleSubmitAreas,
-    watch: watchAreas,
-    formState: { errors: areaErrors, isSubmitting: isSubmittingAreas },
-    reset: resetAreas,
-  } = useForm<AreaFormValues>({
-    resolver: zodResolver(areaSchema),
-    defaultValues: { areaCodes: [], comment: '' },
-  });
-
   const selected = watch('permissions') ?? [];
-  const selectedAreas = watchAreas('areaCodes') ?? [];
   const historyItems = listQuery.data?.items ?? [];
   const pendingItems = pendingRequestsQuery.data?.items ?? [];
   const historyTotal = listQuery.data?.total ?? 0;
   const historyTotalPages = Math.max(1, Math.ceil(historyTotal / historyLimit));
-  const areaItems = areasQuery.data?.items ?? [];
-  const areaTotal = areasQuery.data?.total ?? 0;
-  const areaTotalPages = Math.max(1, Math.ceil(areaTotal / areaLimit));
 
   const pendingPermissionKeys = useMemo(() => {
     const result = new Set<string>();
@@ -178,20 +122,6 @@ export default function PermissionRequestPage() {
       try {
         const parsed = JSON.parse(item.requestedPermissions ?? '[]') as string[];
         parsed.forEach((key) => result.add(key));
-      } catch {
-        continue;
-      }
-    }
-    return result;
-  }, [pendingItems]);
-
-  const pendingAreaCodes = useMemo(() => {
-    const result = new Set<string>();
-    for (const item of pendingItems) {
-      if (item.status !== 'PENDING' || item.requestType !== 'AREAS') continue;
-      try {
-        const parsed = JSON.parse(item.requestedAreaCodes ?? '[]') as string[];
-        parsed.forEach((code) => result.add(code.toUpperCase()));
       } catch {
         continue;
       }
@@ -211,7 +141,6 @@ export default function PermissionRequestPage() {
 
   const hasAllRequestablePermissions = requestableOptions.length === 0;
   const pendingPermissionCount = pendingPermissionKeys.size;
-  const pendingAreaCount = pendingAreaCodes.size;
 
   useEffect(() => {
     if (historyPage > historyTotalPages) {
@@ -225,14 +154,6 @@ export default function PermissionRequestPage() {
       comment: values.comment,
     });
     reset();
-  });
-
-  const onSubmitAreas = handleSubmitAreas(async (values) => {
-    await createAreaMutation.mutateAsync({
-      areaCodes: values.areaCodes,
-      comment: values.comment,
-    });
-    resetAreas();
   });
 
   const columns = useMemo<ResponsiveColumn<PermissionRequest>[]>(
@@ -270,10 +191,9 @@ export default function PermissionRequestPage() {
       <section className="flex flex-col gap-6">
         <PageHeader title="Solicitar permisos" subtitle="Pide accesos adicionales a la asesora." />
 
-        {pendingPermissionCount > 0 || pendingAreaCount > 0 ? (
+        {pendingPermissionCount > 0 ? (
           <NoticeBanner title="Tienes solicitudes pendientes">
-            {pendingPermissionCount > 0 ? `${pendingPermissionCount} permiso(s) siguen en revisión. ` : ''}
-            {pendingAreaCount > 0 ? `${pendingAreaCount} área(s) siguen en revisión.` : ''}
+            {pendingPermissionCount} permiso(s) siguen en revisión.
           </NoticeBanner>
         ) : null}
 
@@ -332,118 +252,13 @@ export default function PermissionRequestPage() {
         </SectionCard>
 
         <SectionCard>
-          <form onSubmit={onSubmitAreas} className="flex flex-col gap-4">
-            <h3 className="font-semibold text-brand-text">Solicitar áreas</h3>
-            <NoticeBanner title="Solicita áreas de trabajo">
-              Las áreas ya asignadas o en revisión se muestran bloqueadas para evitar solicitudes duplicadas.
-            </NoticeBanner>
-            <div className="grid gap-3 md:grid-cols-[1fr_140px]">
-              <Input
-                label="Buscar área"
-                placeholder="Código o nombre"
-                value={areaSearch}
-                onChange={(event) => {
-                  setAreaSearch(event.target.value);
-                  setAreaPage(1);
-                }}
-              />
-              <Button
-                type="button"
-                variant="outline"
-                className="mt-auto"
-                onClick={() => {
-                  setAreaSearch('');
-                  setAreaPage(1);
-                  setAreaLimit(12);
-                }}
-              >
-                Limpiar áreas
-              </Button>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              {areaItems.map((area) => {
-                const alreadyGranted = Boolean(user?.allowedAreaCodes?.includes(area.code));
-                const pending = pendingAreaCodes.has(area.code.toUpperCase());
-                return (
-                  <label key={area.id} className="flex items-center gap-2 text-sm text-brand-text">
-                    {alreadyGranted || pending ? (
-                      <input
-                        type="checkbox"
-                        checked={alreadyGranted || pending}
-                        disabled
-                        readOnly
-                        className="h-4 w-4 rounded border-brand-border text-brand-primary"
-                      />
-                    ) : (
-                      <input
-                        type="checkbox"
-                        value={area.code}
-                        {...registerAreas('areaCodes')}
-                        checked={selectedAreas.includes(area.code)}
-                        className="h-4 w-4 rounded border-brand-border text-brand-primary"
-                      />
-                    )}
-                    <span className={alreadyGranted || pending ? 'text-brand-textMuted' : ''}>
-                      {area.code} - {area.nombre}
-                      {alreadyGranted ? ' (ya activa)' : pending ? ' (pendiente)' : ''}
-                    </span>
-                  </label>
-                );
-              })}
-            </div>
-            <div className="mt-4">
-              <ResultsToolbar
-                summary={
-                  <>
-                    <span>
-                      Mostrando {areaItems.length} de {areaTotal}
-                    </span>
-                    <span>
-                      Página {areasQuery.data?.page ?? areaPage} de {areaTotalPages}
-                    </span>
-                  </>
-                }
-                currentPage={areasQuery.data?.page ?? areaPage}
-                totalPages={areaTotalPages}
-                onPrevious={() => setAreaPage((prev) => Math.max(prev - 1, 1))}
-                onNext={() => setAreaPage((prev) => Math.min(prev + 1, areaTotalPages))}
-                previousDisabled={areaPage <= 1}
-                nextDisabled={areaPage >= areaTotalPages}
-                actions={
-                  <select
-                    aria-label="Límite de áreas por página"
-                    value={String(areaLimit)}
-                    onChange={(event) => {
-                      setAreaLimit(Number(event.target.value));
-                      setAreaPage(1);
-                    }}
-                    className="rounded-full border border-brand-border bg-brand-surface px-3 py-2 text-sm text-brand-text"
-                  >
-                    <option value="12">12</option>
-                    <option value="24">24</option>
-                    <option value="48">48</option>
-                  </select>
-                }
-              />
-            </div>
-            {areaErrors.areaCodes ? (
-              <div className="text-sm text-ember">{areaErrors.areaCodes.message}</div>
-            ) : null}
-            <Textarea label="Comentario" rows={3} {...registerAreas('comment')} />
-            <Button type="submit" className="w-full sm:w-auto" disabled={isSubmittingAreas}>
-              {isSubmittingAreas ? 'Enviando...' : 'Enviar solicitud de áreas'}
-            </Button>
-          </form>
-        </SectionCard>
-
-        <SectionCard>
           {listQuery.isLoading ? (
             <NoticeBanner title="Cargando historial">
               Consultando el estado más reciente de tus solicitudes.
             </NoticeBanner>
           ) : historyItems.length === 0 ? (
             <NoticeBanner title="Sin historial de solicitudes">
-              Aquí aparecerán tus solicitudes de permisos y áreas en cuanto envíes la primera.
+              Aquí aparecerán tus solicitudes en cuanto envíes la primera.
             </NoticeBanner>
           ) : (
             <div className="flex flex-col gap-4">

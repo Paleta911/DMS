@@ -7,6 +7,7 @@ import { AuthRegistrationService } from './auth-registration.service';
 import { AuthLoginService } from './auth-login.service';
 import { AuthEmailVerificationFlowService } from './auth-email-verification-flow.service';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
+import { VerificationEmailDto } from './dto/verification-email.dto';
 
 @Injectable()
 export class AuthService {
@@ -39,6 +40,17 @@ export class AuthService {
     meta?: { ip?: string; userAgent?: string },
   ) {
     return this.authEmailVerificationFlowService.verifyEmail(dto, meta);
+  }
+
+  async resendVerificationCode(
+    dto: VerificationEmailDto,
+    meta?: { ip?: string; userAgent?: string },
+  ) {
+    return this.authEmailVerificationFlowService.resendCode(dto, meta);
+  }
+
+  async getVerificationStatus(dto: VerificationEmailDto) {
+    return this.authEmailVerificationFlowService.getVerificationStatus(dto);
   }
 
   async refreshSession(

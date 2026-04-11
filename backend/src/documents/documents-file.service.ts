@@ -40,6 +40,15 @@ export class DocumentsFileService {
         (header[2] === 0x05 && header[3] === 0x06) ||
         (header[2] === 0x07 && header[3] === 0x08));
     const hasPdfEof = trailer.includes(Buffer.from('%%EOF', 'ascii'));
+    const isOleCompoundFile =
+      header[0] === 0xd0 &&
+      header[1] === 0xcf &&
+      header[2] === 0x11 &&
+      header[3] === 0xe0 &&
+      header[4] === 0xa1 &&
+      header[5] === 0xb1 &&
+      header[6] === 0x1a &&
+      header[7] === 0xe1;
     const hasContentTypes = fileBuffer.includes(
       Buffer.from('[Content_Types].xml', 'utf8'),
     );
@@ -56,8 +65,19 @@ export class DocumentsFileService {
     const isOfficeMime =
       params.mimeType ===
         'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+      params.mimeType === 'application/vnd.ms-excel' ||
+      params.mimeType === 'application/msexcel' ||
+      params.mimeType === 'application/x-msexcel' ||
+      params.mimeType === 'application/xls' ||
       params.mimeType ===
         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+
+    if (extension === '.xls') {
+      if (!isOleCompoundFile) {
+        throw new BadRequestException('Archivo Excel invalido o dañado');
+      }
+      return;
+    }
 
     if (extension === '.docx' || extension === '.xlsx' || isOfficeMime) {
       const hasExpectedEntries =
@@ -119,6 +139,21 @@ export class DocumentsFileService {
           textSource: normalized
             ? VersionTextSource.DocxText
             : VersionTextSource.None,
+          ocrApplied: false,
+          ocrPageCount: null,
+        };
+      }
+
+      if (
+        extension === '.xls' ||
+        params.mimeType === 'application/vnd.ms-excel' ||
+        params.mimeType === 'application/msexcel' ||
+        params.mimeType === 'application/x-msexcel' ||
+        params.mimeType === 'application/xls'
+      ) {
+        return {
+          contentText: null,
+          textSource: VersionTextSource.None,
           ocrApplied: false,
           ocrPageCount: null,
         };

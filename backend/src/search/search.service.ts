@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { SearchIndexingService } from './search-indexing.service';
 import { SearchQueryService } from './search-query.service';
 import { SearchEngineService } from './search-engine.service';
+import { DocumentStatus } from '../documents/document-status.enum';
 
 @Injectable()
 export class SearchService {
@@ -28,7 +29,9 @@ export class SearchService {
     categoryId?: string;
     documentTypeCode?: string;
     areaCode?: string;
+    status?: DocumentStatus;
     allowedAreaCodes?: string[] | null;
+    includeHiddenStatuses?: boolean;
     from?: string;
     to?: string;
     page?: number;

@@ -6,6 +6,7 @@ export async function searchQuery(params: {
   categoryId?: string;
   documentTypeCode?: string;
   areaCode?: string;
+  status?: 'DRAFT' | 'IN_REVIEW' | 'APPROVED' | 'OBSOLETE';
   from?: string;
   to?: string;
   page?: number;

@@ -66,19 +66,51 @@ describe('DocumentsMutationService', () => {
     );
   });
 
-  it('requires document type and area together on upload', async () => {
+  it('requires type, area and consecutive for internal uploads', async () => {
     await expect(
       service.upload({
         nombreDocumento: 'Procedimiento',
         storedName: 'file.pdf',
         originalName: 'file.pdf',
+        isInternal: true,
         documentTypeCode: 'PRO',
         uploadedById: 1,
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
-  it('creates a document version and queues indexing on upload', async () => {
+  it('allows external uploads without code generation', async () => {
+    const areaCode = { id: 3, code: 'RC' };
+    areaCodeRepo.findOne.mockResolvedValue(areaCode);
+    userRepo.findOne.mockResolvedValue({ id: 1 });
+
+    const result = await service.upload({
+      nombreDocumento: 'Documento externo',
+      storedName: 'stored.pdf',
+      originalName: 'original.pdf',
+      areaCode: 'RC',
+      uploadedById: 1,
+    });
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        documentId: 20,
+        versionId: 30,
+        codigo: null,
+      }),
+    );
+    expect(documentRepo.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        isInternal: false,
+        areaCode,
+        documentType: null,
+        consecutivo: null,
+        codigo: null,
+      }),
+    );
+  });
+
+  it('creates an internal document with manual code and queues indexing on upload', async () => {
     const documentType = { id: 2, code: 'PRO' };
     const areaCode = { id: 3, code: 'RC' };
     const uploadedBy = { id: 1 };
@@ -92,8 +124,10 @@ describe('DocumentsMutationService', () => {
       storedName: 'stored.pdf',
       originalName: 'original.pdf',
       comentario: 'Inicial',
+      isInternal: true,
       documentTypeCode: 'PRO',
       areaCode: 'RC',
+      consecutivo: 5,
       uploadedById: 1,
     });
 
@@ -101,55 +135,70 @@ describe('DocumentsMutationService', () => {
       expect.objectContaining({
         documentId: 20,
         versionId: 30,
-        codigo: 'PRO-RC-05',
+        codigo: 'CEP-PRO-RC-05',
       }),
     );
     expect(workflowService.ensureWorkflowForUpload).toHaveBeenCalled();
     expect(searchService.enqueueIndexDocument).toHaveBeenCalledWith(20);
   });
 
-  it('retries the generated code after a duplicate save error', async () => {
+  it('rejects internal uploads when the code already exists', async () => {
     const documentType = { id: 2, code: 'PRO' };
     const areaCode = { id: 3, code: 'RC' };
     documentTypeRepo.findOne.mockResolvedValue(documentType);
     areaCodeRepo.findOne.mockResolvedValue(areaCode);
     userRepo.findOne.mockResolvedValue({ id: 1 });
-    documentRepo.findOne.mockResolvedValue(null);
-    documentRepo.save = jest
-      .fn()
-      .mockRejectedValueOnce(new Error('duplicate key IDX_document_codigo'))
-      .mockResolvedValueOnce({
-        id: 21,
-        nombre: 'Procedimiento',
-        status: DocumentStatus.Draft,
-        codigo: 'PRO-RC-06',
-        consecutivo: 6,
-      });
-    documentRepo.createQueryBuilder = jest
-      .fn()
-      .mockReturnValueOnce({
-        select: jest.fn().mockReturnThis(),
-        where: jest.fn().mockReturnThis(),
-        andWhere: jest.fn().mockReturnThis(),
-        getRawOne: jest.fn().mockResolvedValue({ max: 4 }),
-      })
-      .mockReturnValueOnce({
-        select: jest.fn().mockReturnThis(),
-        where: jest.fn().mockReturnThis(),
-        andWhere: jest.fn().mockReturnThis(),
-        getRawOne: jest.fn().mockResolvedValue({ max: 5 }),
-      });
+    documentRepo.findOne.mockResolvedValue({ id: 99, codigo: 'CEP-PRO-RC-05' });
+
+    await expect(
+      service.upload({
+        nombreDocumento: 'Procedimiento',
+        storedName: 'stored.pdf',
+        originalName: 'original.pdf',
+        isInternal: true,
+        documentTypeCode: 'PRO',
+        areaCode: 'RC',
+        consecutivo: 5,
+        uploadedById: 1,
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('uploads a new version only when documentId is provided', async () => {
+    const existingDocument = {
+      id: 44,
+      nombreDocumento: 'Procedimiento',
+      nombre: 'Procedimiento',
+      status: DocumentStatus.Approved,
+      isInternal: true,
+      codigo: 'CEP-PRO-RC-05',
+      consecutivo: 5,
+      documentType: { id: 2, code: 'PRO' },
+      areaCode: { id: 3, code: 'RC' },
+      category: null,
+      approvals: [],
+    };
+    documentRepo.findOne.mockResolvedValue(existingDocument);
+    userRepo.findOne.mockResolvedValue({ id: 1 });
 
     const result = await service.upload({
+      documentId: 44,
       nombreDocumento: 'Procedimiento',
       storedName: 'stored.pdf',
       originalName: 'original.pdf',
-      documentTypeCode: 'PRO',
-      areaCode: 'RC',
+      categoryId: 1,
+      comentario: 'Nueva versión',
       uploadedById: 1,
     });
 
-    expect(result.codigo).toBe('PRO-RC-06');
+    expect(result).toEqual(
+      expect.objectContaining({
+        documentId: 44,
+        versionId: 30,
+        codigo: 'CEP-PRO-RC-05',
+        workflowReset: true,
+      }),
+    );
   });
 
   it('rejects an update when the target document does not exist', async () => {
@@ -165,17 +214,50 @@ describe('DocumentsMutationService', () => {
       .mockResolvedValueOnce({
         id: 33,
         nombre: 'Actual',
+        isInternal: true,
         category: null,
         documentType: { id: 2, code: 'PRO' },
         areaCode: { id: 3, code: 'RC' },
         consecutivo: 1,
       })
-      .mockResolvedValueOnce({ id: 44, codigo: 'PRO-RC-02' });
+      .mockResolvedValueOnce({ id: 44, codigo: 'CEP-PRO-RC-02' });
     documentTypeRepo.findOne.mockResolvedValue({ id: 2, code: 'PRO' });
     areaCodeRepo.findOne.mockResolvedValue({ id: 3, code: 'RC' });
 
     await expect(
-      service.update(33, undefined, undefined, 'PRO', 'RC', 2),
+      service.update(33, undefined, undefined, true, 'PRO', 'RC', 2),
     ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('clears code fields when a document stops being internal', async () => {
+    documentRepo.findOne.mockResolvedValue({
+      id: 33,
+      nombre: 'Actual',
+      isInternal: true,
+      category: null,
+      documentType: { id: 2, code: 'PRO' },
+      areaCode: { id: 3, code: 'RC' },
+      consecutivo: 2,
+      codigo: 'CEP-PRO-RC-02',
+    });
+
+    const result = await service.update(
+      33,
+      undefined,
+      undefined,
+      false,
+      undefined,
+      undefined,
+      null,
+    );
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        isInternal: false,
+        documentType: null,
+        consecutivo: null,
+        codigo: null,
+      }),
+    );
   });
 });

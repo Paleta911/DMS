@@ -13,7 +13,6 @@ import { VersionsService } from './versions.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
-import { UserScopeService } from '../users/user-scope.service';
 import { PermissionKey } from '../users/permissions';
 import { PERMISSIONS_KEY } from '../auth/permissions.decorator';
 import { UserRole } from '../users/user-role.enum';
@@ -25,10 +24,8 @@ describe('VersionsController', () => {
     create: jest.fn(),
     findByDocument: jest.fn(),
     findById: jest.fn(),
-    getDocumentAreaCode: jest.fn(),
   };
   const auditLogService = { log: jest.fn() };
-  const userScopeService = { assertAreaAccess: jest.fn() };
 
   beforeEach(async () => {
     const builder = Test.createTestingModule({
@@ -36,7 +33,6 @@ describe('VersionsController', () => {
       providers: [
         { provide: VersionsService, useValue: versionsService },
         { provide: AuditLogService, useValue: auditLogService },
-        { provide: UserScopeService, useValue: userScopeService },
       ],
     })
       .overrideGuard(JwtAuthGuard)
@@ -63,6 +59,35 @@ describe('VersionsController', () => {
     expect(permissions).toEqual([PermissionKey.UploadNewVersion]);
   });
 
+  it('crea una nueva version sin validar area del usuario', async () => {
+    versionsService.create.mockResolvedValue({ id: 10, documentId: 42 });
+
+    const req = {
+      ip: '127.0.0.1',
+      headers: { 'user-agent': 'jest' },
+      user: { id: 7, role: UserRole.User },
+    } as never;
+
+    const result = await controller.create(
+      {
+        documentId: 42,
+        storedName: 'v2.pdf',
+        originalName: 'manual-v2.pdf',
+        comentario: 'Nueva version',
+      },
+      req,
+    );
+
+    expect(versionsService.create).toHaveBeenCalledWith({
+      documentId: 42,
+      storedName: 'v2.pdf',
+      originalName: 'manual-v2.pdf',
+      comentario: 'Nueva version',
+      uploadedById: 7,
+    });
+    expect(result).toEqual({ id: 10, documentId: 42 });
+  });
+
   it('declara permisos de lectura para listar versiones', () => {
     const permissions = Reflect.getMetadata(
       PERMISSIONS_KEY,
@@ -72,8 +97,7 @@ describe('VersionsController', () => {
     expect(permissions).toEqual([PermissionKey.Read]);
   });
 
-  it('valida acceso por area antes de listar versiones por documento', async () => {
-    versionsService.getDocumentAreaCode.mockResolvedValue('RC');
+  it('lista versiones por documento sin validar area en lectura', async () => {
     versionsService.findByDocument.mockResolvedValue([{ id: 1 }]);
 
     const req = {
@@ -84,15 +108,6 @@ describe('VersionsController', () => {
 
     const result = await controller.findByDocument('42', req);
 
-    expect(userScopeService.assertAreaAccess).toHaveBeenCalledWith(
-      expect.objectContaining({
-        actor: req.user,
-        areaCode: 'RC',
-        resourceType: 'version',
-        resourceId: 42,
-        endpoint: 'GET /versions/:documentId',
-      }),
-    );
     expect(versionsService.findByDocument).toHaveBeenCalledWith(42);
     expect(result).toEqual([{ id: 1 }]);
   });
@@ -121,13 +136,6 @@ describe('VersionsController', () => {
 
     await controller.download('99', response as never, req);
 
-    expect(userScopeService.assertAreaAccess).toHaveBeenCalledWith(
-      expect.objectContaining({
-        areaCode: 'RC',
-        resourceId: 99,
-        endpoint: 'GET /versions/:id/download',
-      }),
-    );
     expect(response.status).toHaveBeenCalledWith(404);
     expect(response.json).toHaveBeenCalledWith(
       expect.objectContaining({

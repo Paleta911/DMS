@@ -33,8 +33,17 @@ const ACTION_LABELS: Record<string, string> = {
   EMAIL_FAILED: 'Fallo de envío de correo',
   EMAIL_VERIFIED: 'Correo verificado',
   EMAIL_VERIFY_FAILED: 'Fallo en verificación de correo',
+  AUTH_LOGIN_BLOCKED: 'Inicio de sesión bloqueado',
+  AUTH_REFRESH_SUCCESS: 'Renovación de sesión exitosa',
+  AUTH_REFRESH_FAIL: 'Fallo en renovación de sesión',
   REG_APPROVED: 'Registro aprobado',
   REG_REJECTED: 'Registro rechazado',
+  REG_RESTORED: 'Registro restaurado',
+  USER_DELETED: 'Usuario eliminado',
+  USER_SUSPENDED: 'Cuenta suspendida',
+  USER_RESTORED: 'Cuenta restaurada',
+  USER_HARD_DELETED: 'Cuenta eliminada definitivamente',
+  USER_PROFILE_UPDATED: 'Perfil actualizado',
   PERMISSION_REQUEST_CREATED: 'Solicitud creada',
   PERMISSION_REQUEST_APPROVED: 'Solicitud aprobada',
   PERMISSION_REQUEST_REJECTED: 'Solicitud rechazada',
@@ -52,9 +61,18 @@ const ACTION_LABELS: Record<string, string> = {
   DOCUMENT_TYPE_CREATED: 'Tipo de documento creado',
   DOCUMENT_TYPE_UPDATED: 'Tipo de documento actualizado',
   DOCUMENT_TYPE_DELETED: 'Tipo de documento eliminado',
+  DOCUMENT_TYPE_DEACTIVATED: 'Tipo de documento desactivado',
+  CATEGORY_CREATED: 'Categoría creada',
+  CATEGORY_UPDATED: 'Categoría actualizada',
+  CATEGORY_DEACTIVATED: 'Categoría desactivada',
+  CATEGORY_DELETED: 'Categoría eliminada',
   AREA_CODE_CREATED: 'Área creada',
   AREA_CODE_UPDATED: 'Área actualizada',
   AREA_CODE_DELETED: 'Área eliminada',
+  AREA_CODE_DEACTIVATED: 'Área desactivada',
+  USER_AREAS_UPDATED: 'Áreas de usuario actualizadas',
+  DOCUMENT_CONTENT_REPROCESS: 'Reproceso de contenido documental',
+  DOCUMENT_VISIBILITY_POLICY_UPDATED: 'Visibilidad documental actualizada',
 };
 
 const RESOURCE_TYPE_LABELS: Record<string, string> = {
@@ -66,6 +84,10 @@ const RESOURCE_TYPE_LABELS: Record<string, string> = {
   search: 'Búsqueda',
   workflow: 'Flujo',
   user: 'Usuario',
+  category: 'Categoría',
+  area_code: 'Área',
+  document_type: 'Tipo de documento',
+  document_visibility: 'Visibilidad documental',
 };
 
 type Filters = {
@@ -85,11 +107,16 @@ const INITIAL_FILTERS: Filters = {
   from: '',
   to: '',
   page: 1,
-  limit: 20,
+  limit: 10,
 };
+const AUDIT_MIN_DATE = '2026-03-01';
 
 const STORAGE_KEY = 'audit-log-filters';
 const SAVED_VIEWS_KEY = 'audit-log-filter-views';
+
+function buildStorageKey(scope?: string | null) {
+  return scope ? `${STORAGE_KEY}:${scope}` : STORAGE_KEY;
+}
 
 function formatActionLabel(action: string) {
   return ACTION_LABELS[action] ?? action;
@@ -156,12 +183,31 @@ function parsePositiveNumber(value: string | null | undefined, fallback: number)
 }
 
 function sanitizeFilters(partial: Partial<Filters>): Filters {
+  const today = formatDateInput(new Date());
+  const clampDate = (value?: string) => {
+    const normalized = value?.trim() ?? '';
+    if (!normalized) {
+      return '';
+    }
+    if (normalized < AUDIT_MIN_DATE) {
+      return AUDIT_MIN_DATE;
+    }
+    if (normalized > today) {
+      return today;
+    }
+    return normalized;
+  };
+  const from = clampDate(partial.from);
+  const to = clampDate(partial.to);
+  const [normalizedFrom, normalizedTo] =
+    from && to && from > to ? [to, from] : [from, to];
+
   return {
     action: partial.action?.trim() ?? '',
     user: partial.user?.trim() ?? '',
     q: partial.q?.trim() ?? '',
-    from: partial.from?.trim() ?? '',
-    to: partial.to?.trim() ?? '',
+    from: normalizedFrom,
+    to: normalizedTo,
     page: partial.page && partial.page > 0 ? partial.page : INITIAL_FILTERS.page,
     limit: partial.limit && partial.limit > 0 ? partial.limit : INITIAL_FILTERS.limit,
   };
@@ -203,12 +249,12 @@ function areFiltersEqual(left: Filters, right: Filters) {
   );
 }
 
-function loadStoredFilters() {
+function loadStoredFilters(scope?: string | null) {
   if (typeof window === 'undefined') {
     return INITIAL_FILTERS;
   }
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
+    const raw = window.localStorage.getItem(buildStorageKey(scope));
     if (!raw) {
       return INITIAL_FILTERS;
     }
@@ -222,15 +268,17 @@ export default function AuditLogsPage() {
   const { isAdmin, user } = useAuth();
   const { notify } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
+  const storageKey = useMemo(() => buildStorageKey(user?.email ?? null), [user?.email]);
   const initialFilters = useMemo(() => {
     if (searchParams.toString()) {
       return filtersFromSearchParams(searchParams);
     }
-    return loadStoredFilters();
-  }, [searchParams]);
+    return loadStoredFilters(user?.email ?? null);
+  }, [searchParams, user?.email]);
   const [draftFilters, setDraftFilters] = useState<Filters>(initialFilters);
   const [appliedFilters, setAppliedFilters] = useState<Filters>(initialFilters);
   const [selectedMeta, setSelectedMeta] = useState<Record<string, unknown> | null>(null);
+  const maxAuditDate = useMemo(() => formatDateInput(new Date()), []);
   const { views, saveCurrentView, deleteView, rememberLastUsed } = useSavedViews<Filters>({
     storageKey: SAVED_VIEWS_KEY,
     scope: user?.email ?? null,
@@ -261,10 +309,12 @@ export default function AuditLogsPage() {
   });
 
   useEffect(() => {
-    const next = searchParams.toString() ? filtersFromSearchParams(searchParams) : loadStoredFilters();
+    const next = searchParams.toString()
+      ? filtersFromSearchParams(searchParams)
+      : loadStoredFilters(user?.email ?? null);
     setDraftFilters((current) => (areFiltersEqual(current, next) ? current : next));
     setAppliedFilters((current) => (areFiltersEqual(current, next) ? current : next));
-  }, [searchParams]);
+  }, [searchParams, user?.email]);
 
   useEffect(() => {
     const params = filtersToSearchParams(appliedFilters);
@@ -274,10 +324,10 @@ export default function AuditLogsPage() {
       setSearchParams(params, { replace: true });
     }
     if (typeof window !== 'undefined') {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(appliedFilters));
+      window.localStorage.setItem(storageKey, JSON.stringify(appliedFilters));
     }
     rememberLastUsed(appliedFilters);
-  }, [appliedFilters, rememberLastUsed, searchParams, setSearchParams]);
+  }, [appliedFilters, rememberLastUsed, searchParams, setSearchParams, storageKey]);
 
   if (!isAdmin) {
     return (
@@ -304,7 +354,9 @@ export default function AuditLogsPage() {
   ].filter(Boolean).length;
 
   const applyFilters = () => {
-    setAppliedFilters((prev) => ({ ...prev, ...draftFilters, page: 1 }));
+    const nextFilters = sanitizeFilters({ ...draftFilters, page: 1 });
+    setDraftFilters(nextFilters);
+    setAppliedFilters(nextFilters);
   };
 
   const clearFilters = () => {
@@ -316,9 +368,12 @@ export default function AuditLogsPage() {
     const now = new Date();
     const from = new Date();
     from.setDate(now.getDate() - daysBack);
+    const clampedFrom = formatDateInput(
+      from < new Date(`${AUDIT_MIN_DATE}T00:00:00`) ? new Date(`${AUDIT_MIN_DATE}T00:00:00`) : from,
+    );
     setDraftFilters((prev) => ({
       ...prev,
-      from: formatDateInput(from),
+      from: clampedFrom,
       to: formatDateInput(now),
     }));
   };
@@ -480,10 +535,11 @@ export default function AuditLogsPage() {
               label="Tamaño de página"
               value={String(draftFilters.limit)}
               onChange={(event) => {
-                const nextLimit = Number(event.target.value) || 20;
+                const nextLimit = Number(event.target.value) || 10;
                 setDraftFilters((prev) => ({ ...prev, limit: nextLimit }));
               }}
             >
+              <option value="10">10</option>
               <option value="20">20</option>
               <option value="50">50</option>
               <option value="100">100</option>
@@ -492,6 +548,8 @@ export default function AuditLogsPage() {
               label="Desde"
               type="date"
               value={draftFilters.from}
+              min={AUDIT_MIN_DATE}
+              max={maxAuditDate}
               onChange={(event) =>
                 setDraftFilters((prev) => ({
                   ...prev,
@@ -503,6 +561,8 @@ export default function AuditLogsPage() {
               label="Hasta"
               type="date"
               value={draftFilters.to}
+              min={AUDIT_MIN_DATE}
+              max={maxAuditDate}
               onChange={(event) =>
                 setDraftFilters((prev) => ({
                   ...prev,

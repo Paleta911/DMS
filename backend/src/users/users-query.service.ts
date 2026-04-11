@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { EntityManager, Repository } from 'typeorm';
+import { Brackets, EntityManager, In, Repository } from 'typeorm';
 import { User } from './user.entity';
 import { UserRole } from './user-role.enum';
 import { UserStatus } from './user-status.enum';
@@ -40,22 +40,34 @@ export class UsersQueryService {
   async findByIdWithAreas(id: number, manager?: EntityManager) {
     return this.userRepository(manager).findOne({
       where: { id },
-      relations: ['allowedAreaCodes'],
+      relations: ['allowedAreaCodes', 'emailVerification'],
     });
   }
 
-  async searchUsers(query: string, limit = 10) {
+  async searchUsers(
+    query: string,
+    limit?: number,
+    recent = false,
+    filters?: { status?: string; role?: string; areaState?: string },
+  ) {
     const term = query.trim();
-    if (!term) {
+    const statusFilter = filters?.status?.trim() ?? '';
+    const roleFilter = filters?.role?.trim() ?? '';
+    const areaStateFilter = filters?.areaState?.trim() ?? '';
+    const hasStructuredFilters = Boolean(
+      statusFilter || roleFilter || areaStateFilter,
+    );
+
+    if (!term && !recent && !hasStructuredFilters) {
       return [];
     }
 
-    const like = `%${term}%`;
-    const users = await this.userRepo
+    const qb = this.userRepo
       .createQueryBuilder('user')
       .select([
         'user.id',
         'user.email',
+        'user.createdAt',
         'user.nombre',
         'user.primerApellido',
         'user.segundoApellido',
@@ -64,16 +76,83 @@ export class UsersQueryService {
         'user.canAccess',
         'user.canReview',
         'user.canApprove',
-      ])
-      .where('user.email LIKE :like', { like })
-      .orWhere('user.nombre LIKE :like', { like })
-      .orWhere('user.primerApellido LIKE :like', { like })
-      .orWhere('user.segundoApellido LIKE :like', { like })
-      .orderBy('user.email', 'ASC')
-      .take(limit)
-      .getMany();
+      ]);
+
+    if (areaStateFilter) {
+      qb.leftJoin('user.allowedAreaCodes', 'areaCode').distinct(true);
+    }
+
+    if (limit !== undefined) {
+      qb.take(limit);
+    }
+
+    if (term) {
+      const like = `%${term.toLowerCase()}%`;
+      qb.where(
+        new Brackets((searchQb) => {
+          searchQb
+            .where('LOWER(user.email) LIKE :like', { like })
+            .orWhere('LOWER(COALESCE(user.nombre, \'\')) LIKE :like', { like })
+            .orWhere('LOWER(COALESCE(user.primerApellido, \'\')) LIKE :like', { like })
+            .orWhere('LOWER(COALESCE(user.segundoApellido, \'\')) LIKE :like', { like });
+        }),
+      ).orderBy('user.email', 'ASC');
+    } else {
+      qb.orderBy('user.createdAt', 'DESC');
+    }
+
+    if (statusFilter) {
+      qb.andWhere('user.status = :statusFilter', { statusFilter });
+    } else {
+      qb.andWhere('user.status <> :deletedStatus', {
+        deletedStatus: UserStatus.Deleted,
+      });
+    }
+
+    if (roleFilter) {
+      qb.andWhere('user.role = :roleFilter', { roleFilter });
+    }
+
+    if (areaStateFilter === 'with_area') {
+      qb.andWhere('areaCode.id IS NOT NULL');
+    } else if (areaStateFilter === 'without_area') {
+      qb.andWhere('areaCode.id IS NULL');
+      qb.andWhere(
+        "(user.requestedAreaNombre IS NULL OR LTRIM(RTRIM(user.requestedAreaNombre)) = '')",
+      );
+    } else if (areaStateFilter === 'manual_area') {
+      qb.andWhere('areaCode.id IS NULL');
+      qb.andWhere(
+        "(user.requestedAreaNombre IS NOT NULL AND LTRIM(RTRIM(user.requestedAreaNombre)) <> '')",
+      );
+    }
+
+    const users = await qb.getMany();
+    const usersWithAreas =
+      users.length > 0
+        ? await this.userRepo.find({
+            where: { id: In(users.map((user) => user.id)) },
+            relations: ['allowedAreaCodes'],
+          })
+        : [];
+    const areaDataByUserId = new Map(
+      usersWithAreas.map((user) => [
+        user.id,
+        {
+          requestedAreaNombre: user.requestedAreaNombre ?? null,
+          allowedAreaCodes: (user.allowedAreaCodes ?? []).map((area) => ({
+            code: area.code,
+            nombre: area.nombre,
+          })),
+        },
+      ]),
+    );
 
     return users.map((user) => ({
+      ...(areaDataByUserId.get(user.id) ?? {
+        requestedAreaNombre: null,
+        allowedAreaCodes: [],
+      }),
       id: user.id,
       email: user.email,
       nombre: user.nombre ?? null,
@@ -139,6 +218,15 @@ export class UsersQueryService {
       approvedById: user.approvedById ?? null,
       rejectedAt: user.rejectedAt ?? null,
       rejectedReason: user.rejectedReason ?? null,
+      requestedAreaNombre: user.requestedAreaNombre ?? null,
+      deletedAt: user.deletedAt ?? null,
+      deletedById: user.deletedById ?? null,
+      sendStatus: user.emailVerification?.sendStatus ?? null,
+      sendAttempts: user.emailVerification?.sendAttempts ?? 0,
+      lastSentAt: user.emailVerification?.sentAt ?? null,
+      lastError: user.emailVerification?.lastError ?? null,
+      verifyAttempts: user.emailVerification?.verifyAttempts ?? 0,
+      lastAttemptAt: user.emailVerification?.lastAttemptAt ?? null,
       isSuperAdmin: user.isSuperAdmin ?? false,
       permissions: {
         canAccess: user.canAccess,

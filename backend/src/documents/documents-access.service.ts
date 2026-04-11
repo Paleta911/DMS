@@ -6,18 +6,21 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { FindOptionsRelations, Repository } from 'typeorm';
 import { Document } from './document.entity';
+import { DocumentVisibilityService } from '../document-visibility/document-visibility.service';
 
 @Injectable()
 export class DocumentsAccessService {
   constructor(
     @InjectRepository(Document)
     private readonly documentRepo: Repository<Document>,
+    private readonly documentVisibilityService: DocumentVisibilityService,
   ) {}
 
   async ensureAccess(
     documentId: number,
     allowedAreaCodes?: string[] | null,
     relations: FindOptionsRelations<Document> = { areaCode: true },
+    includeHiddenStatuses = false,
   ) {
     if (allowedAreaCodes && allowedAreaCodes.length === 0) {
       throw new ForbiddenException('Sin acceso a este documento');
@@ -33,6 +36,10 @@ export class DocumentsAccessService {
     }
 
     this.assertDocumentScope(document, allowedAreaCodes);
+    await this.documentVisibilityService.assertDocumentVisible(
+      document.status,
+      includeHiddenStatuses,
+    );
     return document;
   }
 
@@ -54,4 +61,3 @@ export class DocumentsAccessService {
     }
   }
 }
-

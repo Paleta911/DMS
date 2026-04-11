@@ -18,6 +18,7 @@ export class CategoriesService {
   findAll(params?: {
     q?: string;
     includeInactive?: boolean;
+    status?: 'active' | 'inactive' | 'all';
     page?: number;
     limit?: number;
   }) {
@@ -30,5 +31,9 @@ export class CategoriesService {
 
   async remove(id: number) {
     return this.mutationService.remove(id);
+  }
+
+  async hardDelete(id: number) {
+    return this.mutationService.hardDelete(id);
   }
 }

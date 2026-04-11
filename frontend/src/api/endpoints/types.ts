@@ -9,6 +9,7 @@ export async function documentTypesList() {
 export async function adminDocumentTypesList(params?: {
   q?: string;
   includeInactive?: boolean;
+  status?: 'active' | 'inactive' | 'all';
   page?: number;
   limit?: number;
 }) {
@@ -27,9 +28,13 @@ export async function documentTypesCreate(payload: {
 
 export async function documentTypesUpdate(
   id: number,
-  payload: { nombreLargo?: string; activo?: boolean },
+  payload: { code?: string; nombreLargo?: string; activo?: boolean },
 ) {
-  const { data } = await http.patch<DocumentType>(`/document-types/${id}`, payload);
+  const { data } = await http.patch<DocumentType>(`/document-types/${id}`, {
+    code: payload.code,
+    nombreLargo: payload.nombreLargo,
+    activo: payload.activo,
+  });
   return data;
 }
 
@@ -38,14 +43,25 @@ export async function documentTypesDelete(id: number) {
   return data;
 }
 
+export async function documentTypesHardDelete(id: number) {
+  const { data } = await http.delete<{ success: boolean }>(`/document-types/${id}/permanent`);
+  return data;
+}
+
 export async function areaCodesList() {
   const { data } = await http.get<AreaCode[]>('/area-codes');
+  return data;
+}
+
+export async function publicAreaCodesList() {
+  const { data } = await http.get<AreaCode[]>('/area-codes/public');
   return data;
 }
 
 export async function areaCodesListPaged(params?: {
   q?: string;
   includeInactive?: boolean;
+  status?: 'active' | 'inactive' | 'all';
   page?: number;
   limit?: number;
 }) {
@@ -56,6 +72,7 @@ export async function areaCodesListPaged(params?: {
 export async function adminAreaCodesList(params?: {
   q?: string;
   includeInactive?: boolean;
+  status?: 'active' | 'inactive' | 'all';
   page?: number;
   limit?: number;
 }) {
@@ -74,13 +91,22 @@ export async function areaCodesCreate(payload: {
 
 export async function areaCodesUpdate(
   id: number,
-  payload: { nombre?: string; activo?: boolean },
+  payload: { code?: string; nombre?: string; activo?: boolean },
 ) {
-  const { data } = await http.patch<AreaCode>(`/area-codes/${id}`, payload);
+  const { data } = await http.patch<AreaCode>(`/area-codes/${id}`, {
+    code: payload.code,
+    nombre: payload.nombre,
+    activo: payload.activo,
+  });
   return data;
 }
 
 export async function areaCodesDelete(id: number) {
   const { data } = await http.delete<{ success: boolean }>(`/area-codes/${id}`);
+  return data;
+}
+
+export async function areaCodesHardDelete(id: number) {
+  const { data } = await http.delete<{ success: boolean }>(`/area-codes/${id}/permanent`);
   return data;
 }

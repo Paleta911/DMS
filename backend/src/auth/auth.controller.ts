@@ -6,7 +6,7 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
-import { Throttle } from '@nestjs/throttler';
+import { SkipThrottle, Throttle } from '@nestjs/throttler';
 import type { Request } from 'express';
 import { ApiBearerAuth, ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
@@ -17,32 +17,17 @@ import { getEnv } from '../common/env.utils';
 import { RegisterDto } from './dto/register.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
+import { VerificationEmailDto } from './dto/verification-email.dto';
 import {
   throttleByIpAndEmail,
   throttleFromEnv,
 } from '../common/throttle.utils';
-
-const authLoginThrottle = throttleFromEnv(
-  'AUTH_LOGIN_LIMIT',
-  'AUTH_LOGIN_TTL_SEC',
-  10,
-  60,
-  { getTracker: throttleByIpAndEmail },
-);
 
 const authRegisterThrottle = throttleFromEnv(
   'AUTH_REGISTER_LIMIT',
   'AUTH_REGISTER_TTL_SEC',
   6,
   300,
-  { getTracker: throttleByIpAndEmail },
-);
-
-const authVerifyEmailThrottle = throttleFromEnv(
-  'AUTH_VERIFY_EMAIL_LIMIT',
-  'AUTH_VERIFY_EMAIL_TTL_SEC',
-  10,
-  900,
   { getTracker: throttleByIpAndEmail },
 );
 
@@ -67,7 +52,7 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('login')
-  @Throttle(authLoginThrottle)
+  @SkipThrottle()
   @ApiOperation({ summary: 'Login and get JWT' })
   login(@Body() body: LoginDto, @Req() req: Request) {
     return this.authService.login(body, {
@@ -88,12 +73,27 @@ export class AuthController {
   }
 
   @Post('verify-email')
-  @Throttle(authVerifyEmailThrottle)
+  @SkipThrottle()
   verifyEmail(@Body() body: VerifyEmailDto, @Req() req: Request) {
     return this.authService.verifyEmail(body, {
       ip: req.ip,
       userAgent: req.headers['user-agent'] as string | undefined,
     });
+  }
+
+  @Post('resend-verification-code')
+  @SkipThrottle()
+  resendVerificationCode(@Body() body: VerificationEmailDto, @Req() req: Request) {
+    return this.authService.resendVerificationCode(body, {
+      ip: req.ip,
+      userAgent: req.headers['user-agent'] as string | undefined,
+    });
+  }
+
+  @Post('verification-status')
+  @SkipThrottle()
+  getVerificationStatus(@Body() body: VerificationEmailDto) {
+    return this.authService.getVerificationStatus(body);
   }
 
   @Post('refresh')

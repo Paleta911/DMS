@@ -16,6 +16,8 @@ export async function authRegister(payload: {
   primerApellido?: string;
   segundoApellido?: string;
   email: string;
+  areaCode?: string;
+  requestedAreaNombre?: string;
   telefono?: string;
   fechaNacimiento?: string;
   password: string;
@@ -29,6 +31,39 @@ export async function authRegister(payload: {
 export async function authVerifyEmail(payload: { email: string; code: string }) {
   const { data } = await http.post<AuthUser>('/auth/verify-email', payload);
   return data;
+}
+
+export async function authResendVerificationCode(payload: { email: string }) {
+  const { data } = await http.post('/auth/resend-verification-code', payload);
+  return data as {
+    status: string;
+    canResend: boolean;
+    canVerify: boolean;
+    remainingSec: number;
+    nextAllowedAt: string | null;
+    verifyRemainingSec: number;
+    verifyBlockedUntil: string | null;
+    lastSentAt: string | null;
+    expiresAt: string | null;
+    sendStatus: string | null;
+  };
+}
+
+export async function authVerificationStatus(payload: { email: string }) {
+  const { data } = await http.post('/auth/verification-status', payload);
+  return data as {
+    email: string;
+    status: string;
+    canResend: boolean;
+    canVerify: boolean;
+    remainingSec: number;
+    nextAllowedAt: string | null;
+    verifyRemainingSec: number;
+    verifyBlockedUntil: string | null;
+    lastSentAt: string | null;
+    expiresAt: string | null;
+    sendStatus: string | null;
+  };
 }
 
 export async function getHealth() {

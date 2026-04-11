@@ -36,6 +36,8 @@ export class RegistrationsQueryService {
         telefono: user.telefono ?? null,
         fechaNacimiento: user.fechaNacimiento ?? null,
         status: user.status,
+        areaLabel: this.buildAreaLabel(user),
+        requestedAreaNombre: user.requestedAreaNombre ?? null,
         registeredAt: user.createdAt,
         verifiedAt: user.verifiedAt ?? null,
         sendStatus: user.emailVerification?.sendStatus ?? null,
@@ -67,6 +69,7 @@ export class RegistrationsQueryService {
       'telefono',
       'fechaNacimiento',
       'estado',
+      'area',
       'registrado',
       'verificado',
       'envioEstado',
@@ -87,6 +90,7 @@ export class RegistrationsQueryService {
         user.telefono ?? '',
         user.fechaNacimiento?.toISOString?.() ?? user.fechaNacimiento ?? '',
         user.status,
+        this.buildAreaExportValue(user),
         user.createdAt.toISOString(),
         user.verifiedAt?.toISOString?.() ?? '',
         user.emailVerification?.sendStatus ?? '',
@@ -111,7 +115,12 @@ export class RegistrationsQueryService {
     const qb = this.userRepo
       .createQueryBuilder('user')
       .leftJoinAndSelect('user.emailVerification', 'verification')
-      .orderBy('user.createdAt', 'DESC');
+      .leftJoinAndSelect('user.allowedAreaCodes', 'areaCode')
+      .distinct(true)
+      .orderBy('user.createdAt', 'DESC')
+      .andWhere('user.status <> :deletedStatus', {
+        deletedStatus: UserStatus.Deleted,
+      });
 
     if (params.status) {
       qb.andWhere('user.status = :status', { status: params.status });
@@ -125,6 +134,9 @@ export class RegistrationsQueryService {
             OR LOWER(COALESCE(user.nombre, '')) LIKE :q
             OR LOWER(COALESCE(user.primerApellido, '')) LIKE :q
             OR LOWER(COALESCE(user.segundoApellido, '')) LIKE :q
+            OR LOWER(COALESCE(user.requestedAreaNombre, '')) LIKE :q
+            OR LOWER(COALESCE(areaCode.code, '')) LIKE :q
+            OR LOWER(COALESCE(areaCode.nombre, '')) LIKE :q
           )
         `,
         { q: `%${q.toLowerCase()}%` },
@@ -141,5 +153,25 @@ export class RegistrationsQueryService {
         : String(value).replace(/\r?\n/g, ' ');
     const escaped = normalized.replace(/"/g, '""');
     return `"${escaped}"`;
+  }
+
+  private buildAreaLabel(user: User) {
+    const labels = (user.allowedAreaCodes ?? []).map(
+      (area) => `${area.code} - ${area.nombre}`,
+    );
+    if (labels.length > 0) {
+      return labels.join(', ');
+    }
+    if (user.requestedAreaNombre) {
+      return 'Mi área no está en la lista';
+    }
+    return '-';
+  }
+
+  private buildAreaExportValue(user: User) {
+    if (user.requestedAreaNombre) {
+      return `Mi área no está en la lista: ${user.requestedAreaNombre}`;
+    }
+    return this.buildAreaLabel(user);
   }
 }

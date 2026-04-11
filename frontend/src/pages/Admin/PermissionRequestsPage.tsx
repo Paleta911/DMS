@@ -91,7 +91,7 @@ function buildPermissionRequestActions(
 }
 
 export default function PermissionRequestsPage() {
-  const { isAdmin } = useAuth();
+  const { user, isAdmin } = useAuth();
   const { notify } = useToast();
   const { initialFilters, views, saveCurrentView, deleteView, rememberLastUsed } =
     useSavedViews<{
@@ -103,6 +103,7 @@ export default function PermissionRequestsPage() {
       limit: number;
     }>({
       storageKey: 'admin-permission-request-filters',
+      scope: user?.email ?? null,
       fallback: {
         status: 'ALL',
         typeFilter: 'ALL',

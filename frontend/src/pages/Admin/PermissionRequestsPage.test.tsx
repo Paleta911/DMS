@@ -39,6 +39,7 @@ vi.mock('../../api/endpoints/permissionRequests', () => mocks.api);
 
 describe('PermissionRequestsPage', () => {
   beforeEach(() => {
+    window.localStorage.clear();
     mocks.notify.mockReset();
     mocks.api.adminPermissionRequestsList.mockReset();
     mocks.api.adminPermissionRequestApprove.mockReset();
@@ -97,6 +98,7 @@ describe('PermissionRequestsPage', () => {
     renderWithProviders(<PermissionRequestsPage />);
 
     expect((await screen.findAllByText('sus@bsm.com.mx')).length).toBeGreaterThan(0);
+    expect(await screen.findByText('Subir documentos, Revisar documentos')).toBeInTheDocument();
 
     fireEvent.click(screen.getAllByRole('button', { name: 'Aprobar' })[0]);
 
@@ -127,5 +129,41 @@ describe('PermissionRequestsPage', () => {
     await waitFor(() => {
       expect(mocks.notify).toHaveBeenCalledWith('Solicitud rechazada', 'success');
     });
+  });
+
+  it('recupera filtros guardados por usuario', async () => {
+    window.localStorage.setItem(
+      'admin-permission-request-filters:admin@local.com',
+      JSON.stringify({
+        lastUsed: {
+          status: 'APPROVED',
+          typeFilter: 'AREAS',
+          userFilter: 'aprobado@bsm.com.mx',
+          detailFilter: 'READ',
+          page: 2,
+          limit: 50,
+        },
+        views: [],
+      }),
+    );
+
+    renderWithProviders(<PermissionRequestsPage />);
+
+    await waitFor(() => {
+      expect(mocks.api.adminPermissionRequestsList).toHaveBeenCalledWith({
+        status: 'APPROVED',
+        type: 'AREAS',
+        user: 'aprobado@bsm.com.mx',
+        detail: 'READ',
+        page: 2,
+        limit: 50,
+      });
+    });
+
+    expect(screen.getByLabelText('Estado')).toHaveValue('APPROVED');
+    expect(screen.getByLabelText('Tipo')).toHaveValue('AREAS');
+    expect(screen.getByDisplayValue('aprobado@bsm.com.mx')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('READ')).toBeInTheDocument();
+    expect(screen.getByLabelText('Límite')).toHaveValue('50');
   });
 });

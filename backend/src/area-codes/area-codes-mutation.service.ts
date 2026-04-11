@@ -47,6 +47,14 @@ export class AreaCodesMutationService {
     if (!entity) {
       throw new NotFoundException('Área no encontrada');
     }
+    if (typeof payload.code === 'string') {
+      const nextCode = payload.code.toUpperCase().trim();
+      const existing = await this.areaCodeRepo.findOne({ where: { code: nextCode } });
+      if (existing && existing.id !== entity.id) {
+        throw new ConflictException('Ya existe un área con ese código');
+      }
+      entity.code = nextCode;
+    }
     if (typeof payload.nombre === 'string') {
       entity.nombre = payload.nombre.trim();
     }
@@ -97,5 +105,35 @@ export class AreaCodesMutationService {
     entity.activo = false;
     await this.areaCodeRepo.save(entity);
     return { success: true, deactivated: true };
+  }
+
+  async hardDelete(id: number) {
+    const entity = await this.areaCodeRepo.findOne({ where: { id } });
+    if (!entity) {
+      throw new NotFoundException('Área no encontrada');
+    }
+
+    await this.documentRepo
+      .createQueryBuilder()
+      .update(Document)
+      .set({ areaCode: null })
+      .where('areaCodeId = :id', { id })
+      .execute();
+
+    await this.areaCodeRepo.manager
+      .createQueryBuilder()
+      .delete()
+      .from('user_area_codes')
+      .where('areaCodeId = :id', { id })
+      .execute();
+
+    await this.areaCodeRepo.delete(id);
+    return {
+      success: true,
+      deleted: true,
+      id: entity.id,
+      code: entity.code,
+      nombre: entity.nombre,
+    };
   }
 }

@@ -7,6 +7,12 @@ const DEFAULT_ALLOWED_MIME_BY_EXTENSION: Record<string, string[]> = {
   '.docx': [
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   ],
+  '.xls': [
+    'application/vnd.ms-excel',
+    'application/msexcel',
+    'application/x-msexcel',
+    'application/xls',
+  ],
   '.xlsx': [
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   ],

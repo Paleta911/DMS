@@ -10,6 +10,7 @@ const statusLabels: Record<string, string> = {
   VERIFIED_EMAIL: 'Correo verificado',
   VERIFIED_PENDING_APPROVAL: 'Verificado, pendiente de aprobación',
   PENDING_EMAIL: 'Pendiente de correo',
+  DELETED: 'Eliminado',
   DB_UP: 'BD activa',
   DB_DOWN: 'BD inactiva',
   ES_UP: 'ES activo',

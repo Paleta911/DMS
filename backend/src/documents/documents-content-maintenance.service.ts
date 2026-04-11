@@ -104,6 +104,9 @@ export class DocumentsContentMaintenanceService {
     if (extension === '.docx') {
       return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
     }
+    if (extension === '.xls') {
+      return 'application/vnd.ms-excel';
+    }
     if (extension === '.xlsx') {
       return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
     }

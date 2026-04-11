@@ -15,6 +15,7 @@ import { SearchIndexJob } from './search-index-job.entity';
 import { SearchEngineService } from './search-engine.service';
 import { SearchIndexingService } from './search-indexing.service';
 import { SearchQueryService } from './search-query.service';
+import { DocumentVisibilityModule } from '../document-visibility/document-visibility.module';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { SearchQueryService } from './search-query.service';
     AuditLogModule,
     UsersModule,
     ObservabilityModule,
+    DocumentVisibilityModule,
   ],
   providers: [
     SearchService,

@@ -19,6 +19,8 @@ type DataTableSectionProps<T> = {
   items: T[];
   getRowKey: (item: T) => string | number;
   renderMobileCard: (item: T) => ReactNode;
+  onRowClick?: (item: T) => void;
+  rowClassName?: string | ((item: T) => string | undefined);
   toolbar?: ToolbarProps;
   className?: string;
   tableProps?: {
@@ -36,6 +38,8 @@ export function DataTableSection<T>({
   items,
   getRowKey,
   renderMobileCard,
+  onRowClick,
+  rowClassName,
   toolbar,
   className,
   tableProps,
@@ -60,6 +64,8 @@ export function DataTableSection<T>({
           items={items}
           getRowKey={getRowKey}
           renderMobileCard={renderMobileCard}
+          onRowClick={onRowClick}
+          rowClassName={rowClassName}
           ariaLabel={tableProps?.ariaLabel}
           caption={tableProps?.caption}
           maxDesktopHeightPx={tableProps?.maxDesktopHeightPx}

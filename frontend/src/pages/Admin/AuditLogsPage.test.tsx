@@ -161,7 +161,7 @@ describe('AuditLogsPage', () => {
 
   it('recupera filtros guardados y los vuelve a guardar al aplicar cambios', async () => {
     window.localStorage.setItem(
-      'audit-log-filters',
+      'audit-log-filters:admin@local.com',
       JSON.stringify({
         action: 'ACCESS_DENIED',
         user: '15',
@@ -193,7 +193,7 @@ describe('AuditLogsPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Aplicar filtros' }));
 
     await waitFor(() => {
-      expect(JSON.parse(window.localStorage.getItem('audit-log-filters') ?? '{}')).toMatchObject({
+      expect(JSON.parse(window.localStorage.getItem('audit-log-filters:admin@local.com') ?? '{}')).toMatchObject({
         action: 'ACCESS_DENIED',
         user: '99',
         q: 'registro',

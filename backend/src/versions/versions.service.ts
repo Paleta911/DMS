@@ -29,6 +29,10 @@ export class VersionsService {
     return this.queryService.findById(id);
   }
 
+  async findDocumentStatus(documentId: number) {
+    return this.queryService.findDocumentStatus(documentId);
+  }
+
   async getDocumentAreaCode(documentId: number) {
     return this.mutationService.getDocumentAreaCode(documentId);
   }

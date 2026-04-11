@@ -17,6 +17,15 @@ export type UserProfile = {
   approvedById?: number | null;
   rejectedAt?: string | null;
   rejectedReason?: string | null;
+  requestedAreaNombre?: string | null;
+  deletedAt?: string | null;
+  deletedById?: number | null;
+  sendStatus?: string | null;
+  sendAttempts?: number;
+  lastSentAt?: string | null;
+  lastError?: string | null;
+  verifyAttempts?: number;
+  lastAttemptAt?: string | null;
   isSuperAdmin?: boolean;
   permissions?: PermissionFlags;
   tasks?: {
@@ -33,7 +42,14 @@ export type UserSearchItem = {
   segundoApellido?: string | null;
   role?: UserRole;
   status?: UserStatus;
+  requestedAreaNombre?: string | null;
+  allowedAreaCodes?: Array<{
+    code: string;
+    nombre: string;
+  }>;
   canAccess?: boolean;
   canReview?: boolean;
   canApprove?: boolean;
+  deletedAt?: string | null;
+  deletedById?: number | null;
 };

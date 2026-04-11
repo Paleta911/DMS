@@ -46,6 +46,8 @@ export class AppExceptionFilter implements ExceptionFilter {
               error?: string;
               errors?: unknown;
               code?: string;
+              remainingSec?: unknown;
+              blockedUntil?: unknown;
             });
 
       const errors =
@@ -65,6 +67,15 @@ export class AppExceptionFilter implements ExceptionFilter {
           message,
           errors: errors.length > 0 ? errors : undefined,
           code: payload.code,
+          remainingSec:
+            typeof payload.remainingSec === 'number' &&
+            Number.isFinite(payload.remainingSec)
+              ? payload.remainingSec
+              : undefined,
+          blockedUntil:
+            typeof payload.blockedUntil === 'string'
+              ? payload.blockedUntil
+              : undefined,
           request,
         }),
       );

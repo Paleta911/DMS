@@ -13,6 +13,11 @@ describe('UsersController authz metadata', () => {
     expect(guards).toEqual([JwtAuthGuard]);
   });
 
+  it('protege PATCH /me con JwtAuthGuard', () => {
+    const guards = Reflect.getMetadata(GUARDS_METADATA, target.updateMe);
+    expect(guards).toEqual([JwtAuthGuard]);
+  });
+
   it('declara rol admin para busqueda, detalle y actualizacion de areas', () => {
     for (const method of [target.searchUsers, target.getUser, target.updateAreas]) {
       const guards = Reflect.getMetadata(GUARDS_METADATA, method);
