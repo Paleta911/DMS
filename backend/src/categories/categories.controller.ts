@@ -22,6 +22,7 @@ import { Roles } from '../auth/roles.decorator';
 import { UserRole } from '../users/user-role.enum';
 import { HttpAuditService } from '../audit-log/http-audit.service';
 
+// Admin-only categories controller: CRUD endpoints for document classification types with audit trail
 @ApiTags('categories')
 @Controller('categories')
 export class CategoriesController {
@@ -30,6 +31,7 @@ export class CategoriesController {
     private readonly httpAuditService: HttpAuditService,
   ) {}
 
+  // Create new category (admin only); audit logs creation event
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.Admin)

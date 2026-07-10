@@ -41,6 +41,7 @@ export class SearchController {
     @Query() query: SearchQueryDto,
     @Req() req: Request & { user?: { id: number; role: UserRole } },
   ) {
+    // Admin can include hidden statuses; regular users always get filtered visibility.
     const result = await this.searchService.search({
       ...query,
       includeHiddenStatuses: req.user?.role === UserRole.Admin,
@@ -70,6 +71,7 @@ export class SearchController {
   @Post('reindex')
   @ApiBearerAuth()
   reindex() {
+    // Expensive operation is admin-only and throttled.
     return this.searchService.reindexAll();
   }
 

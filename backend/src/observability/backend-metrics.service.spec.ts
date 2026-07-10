@@ -1,5 +1,6 @@
 import { BackendMetricsService } from './backend-metrics.service';
 
+// Verifies metric counters and status transitions used by operational dashboards.
 describe('BackendMetricsService', () => {
   it('tracks search queue, retries and queries', () => {
     const service = new BackendMetricsService();

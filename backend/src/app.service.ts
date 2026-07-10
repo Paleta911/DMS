@@ -16,7 +16,11 @@ export class AppService {
 
   async healthCheck() {
     const requestId = getRequestId();
-    const esStatus = await this.searchService.checkElasticHealthCached(200, 10000);
+    // Check both database and search engine (Elasticsearch) connectivity with caching
+    const esStatus = await this.searchService.checkElasticHealthCached(
+      200,
+      10000,
+    );
     try {
       await this.dataSource.query('SELECT 1');
       return {
@@ -26,6 +30,7 @@ export class AppService {
         ...(requestId ? { requestId } : {}),
       };
     } catch (error) {
+      // Log partial health if DB fails (service still returns ok with degraded db status)
       return {
         status: 'ok',
         db: 'down',

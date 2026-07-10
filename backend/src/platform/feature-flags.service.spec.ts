@@ -3,6 +3,7 @@ import {
   FeatureFlagsService,
 } from './feature-flags.service';
 
+// Validates default and env-driven behavior of runtime feature toggles.
 describe('FeatureFlagsService', () => {
   const previous = process.env.FEATURE_FLAGS;
 
@@ -14,7 +15,9 @@ describe('FeatureFlagsService', () => {
     delete process.env.FEATURE_FLAGS;
     const service = new FeatureFlagsService();
 
-    expect(service.getSnapshot().enabled).toEqual([...DEFAULT_FEATURE_FLAGS].sort());
+    expect(service.getSnapshot().enabled).toEqual(
+      [...DEFAULT_FEATURE_FLAGS].sort(),
+    );
     expect(service.isEnabled('admin-analytics')).toBe(true);
   });
 

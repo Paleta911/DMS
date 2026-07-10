@@ -133,6 +133,7 @@ export class DocumentsController {
     const originalName = sanitizeUploadOriginalName(file.originalname);
 
     try {
+      // Validate real file signature to prevent extension/MIME spoofing.
       this.documentsService.assertUploadFileSignature({
         filePath: file.path,
         originalName,
@@ -188,6 +189,7 @@ export class DocumentsController {
       });
 
       if (result.workflowReset) {
+        // New version on approved docs reopens workflow by design.
         await this.auditLogService.log({
           userId: req.user.id,
           action: 'WORKFLOW_RESET_ON_NEW_VERSION',
@@ -201,6 +203,7 @@ export class DocumentsController {
 
       return result;
     } catch (error) {
+      // Best-effort cleanup avoids orphan files when upload flow fails mid-request.
       if (file.path && existsSync(file.path)) {
         rmSync(file.path, { force: true });
       }
@@ -213,8 +216,7 @@ export class DocumentsController {
   @Post('reprocess-content')
   @ApiBearerAuth()
   @ApiOperation({
-    summary:
-      'Reprocesa extracción de texto y OCR para documentos existentes',
+    summary: 'Reprocesa extracción de texto y OCR para documentos existentes',
   })
   async reprocessContent(
     @Body() body: ReprocessDocumentContentDto,
@@ -291,7 +293,11 @@ export class DocumentsController {
   @Permissions(PermissionKey.Upload)
   @Patch(':id')
   @ApiBearerAuth()
-  async update(@Param('id') id: string, @Body() body: UpdateDocumentDto, @Req() req: AuthRequest) {
+  async update(
+    @Param('id') id: string,
+    @Body() body: UpdateDocumentDto,
+    @Req() req: AuthRequest,
+  ) {
     return this.userScopeService.runWithAccessDeniedAudit(
       {
         actor: req.user,
@@ -443,7 +449,11 @@ export class DocumentsController {
         userAgent: req.headers['user-agent'] as string | undefined,
       },
       async () => {
-        await this.documentsService.ensureAccess(Number(id), undefined, isAdmin);
+        await this.documentsService.ensureAccess(
+          Number(id),
+          undefined,
+          isAdmin,
+        );
         const result = await this.documentsService.submitReview(
           Number(id),
           req.user.id,

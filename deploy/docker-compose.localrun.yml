@@ -5,7 +5,7 @@ services:
       DB_HOST: host.docker.internal
       DB_PORT: 1433
       DB_USER: sa
-      DB_PASS: 6804
+      DB_PASS: ${DB_PASS:?Set DB_PASS in deploy/.env}
       DB_NAME: DMS
       DB_ENCRYPT: "false"
       DB_TRUST_CERT: "true"
@@ -19,7 +19,7 @@ services:
       DB_HOST: host.docker.internal
       DB_PORT: 1433
       DB_USER: sa
-      DB_PASS: 6804
+      DB_PASS: ${DB_PASS:?Set DB_PASS in deploy/.env}
       DB_NAME: DMS
       DB_ENCRYPT: "false"
       DB_TRUST_CERT: "true"

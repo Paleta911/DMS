@@ -364,16 +364,13 @@ Si esos pasos responden, no hace falta reiniciar todo.
 ### Grafana
 
 - usuario: `admin`
-- password: `change_me`
+- password: valor de `GRAFANA_PASSWORD` en tu `.env` local
 
 ### App DMS
 
 Las credenciales del sistema dependen de la base que estes usando.
 
-En el entorno actual conectado a tu base local historica:
-
-- `admin@local.com`
-- password: `Admin123`
+No publiques credenciales reales. Para pruebas locales, define usuarios y passwords en tu `.env` o crealos con el flujo de bootstrap, y rota cualquier password que haya sido compartido fuera de tu equipo.
 
 ## Resumen corto
 

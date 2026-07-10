@@ -50,6 +50,7 @@ export class UsersController {
     }
     const accessBlock = getSystemAccessBlockReason(user);
     if (accessBlock) {
+      // Preserve centralized account access rules for profile reads as well.
       throw new ForbiddenException(accessBlock.message);
     }
     const tasks = await this.usersService.getPendingTasks(userId);
@@ -72,7 +73,10 @@ export class UsersController {
       throw new NotFoundException('Usuario no encontrado');
     }
 
-    const result = await this.usersProfileService.updateOwnProfile(userId, body);
+    const result = await this.usersProfileService.updateOwnProfile(
+      userId,
+      body,
+    );
     if (result.auditMeta) {
       await this.httpAuditService.logFromRequest(req, {
         action: 'USER_PROFILE_UPDATED',
@@ -84,7 +88,8 @@ export class UsersController {
     const tasks = await this.usersService.getPendingTasks(result.user.id);
     return {
       ...this.usersService.toSafeUser(result.user),
-      allowedAreaCodes: result.user.allowedAreaCodes?.map((area) => area.code) ?? [],
+      allowedAreaCodes:
+        result.user.allowedAreaCodes?.map((area) => area.code) ?? [],
       tasks,
     };
   }
@@ -107,7 +112,9 @@ export class UsersController {
       parsedLimit !== undefined && Number.isFinite(parsedLimit)
         ? Math.min(Math.max(parsedLimit, 1), 500)
         : undefined;
-    const useRecent = ['1', 'true', 'yes'].includes((recent ?? '').toLowerCase());
+    const useRecent = ['1', 'true', 'yes'].includes(
+      (recent ?? '').toLowerCase(),
+    );
     return this.usersService.searchUsers(q ?? '', safeLimit, useRecent, {
       status,
       role,
@@ -139,15 +146,21 @@ export class UsersController {
     @Body() body: UpdateUserAreasDto,
     @Req() req: Request & { user?: { id?: number } },
   ) {
+    // Area update audit captures before/after codes for traceability.
     const userId = Number(id);
     const existingUser = await this.usersService.findByIdWithAreas(userId);
     if (!existingUser) {
       throw new NotFoundException('Usuario no encontrado');
     }
-    const previousCodes = existingUser.allowedAreaCodes?.map((area) => area.code) ?? [];
-    const previousRequestedAreaNombre = existingUser.requestedAreaNombre ?? null;
-    const codes = body.areaCodes.map((code) => code.toUpperCase().trim()).filter(Boolean);
+    const previousCodes =
+      existingUser.allowedAreaCodes?.map((area) => area.code) ?? [];
+    const previousRequestedAreaNombre =
+      existingUser.requestedAreaNombre ?? null;
+    const codes = body.areaCodes
+      .map((code) => code.toUpperCase().trim())
+      .filter(Boolean);
     if (codes.length === 0) {
+      // Empty payload explicitly clears all area assignments.
       const user = await this.ensureUpdatedUser(
         await this.usersService.setAllowedAreas(userId, []),
       );
@@ -162,8 +175,12 @@ export class UsersController {
           areaCodes: nextCodes,
           previousRequestedAreaNombre,
           requestedAreaNombre: user.requestedAreaNombre ?? null,
-          addedAreaCodes: nextCodes.filter((code) => !previousCodes.includes(code)),
-          removedAreaCodes: previousCodes.filter((code) => !nextCodes.includes(code)),
+          addedAreaCodes: nextCodes.filter(
+            (code) => !previousCodes.includes(code),
+          ),
+          removedAreaCodes: previousCodes.filter(
+            (code) => !nextCodes.includes(code),
+          ),
         },
       });
       return {
@@ -176,7 +193,9 @@ export class UsersController {
     const allCodes = new Set(allAreas.map((area) => area.code));
     const invalidCodes = codes.filter((code) => !allCodes.has(code));
     if (invalidCodes.length > 0) {
-      throw new NotFoundException(`Areas no encontradas: ${invalidCodes.join(', ')}`);
+      throw new NotFoundException(
+        `Areas no encontradas: ${invalidCodes.join(', ')}`,
+      );
     }
 
     const allowed = allAreas.filter((area) => codes.includes(area.code));
@@ -185,7 +204,9 @@ export class UsersController {
     );
     if (user.requestedAreaNombre && codes.length > 0) {
       user.requestedAreaNombre = null;
-      user = await this.ensureUpdatedUser(await this.usersService.saveUser(user));
+      user = await this.ensureUpdatedUser(
+        await this.usersService.saveUser(user),
+      );
     }
     const nextCodes = user.allowedAreaCodes?.map((area) => area.code) ?? [];
     await this.httpAuditService.logFromRequest(req, {
@@ -198,8 +219,12 @@ export class UsersController {
         areaCodes: nextCodes,
         previousRequestedAreaNombre,
         requestedAreaNombre: user.requestedAreaNombre ?? null,
-        addedAreaCodes: nextCodes.filter((code) => !previousCodes.includes(code)),
-        removedAreaCodes: previousCodes.filter((code) => !nextCodes.includes(code)),
+        addedAreaCodes: nextCodes.filter(
+          (code) => !previousCodes.includes(code),
+        ),
+        removedAreaCodes: previousCodes.filter(
+          (code) => !nextCodes.includes(code),
+        ),
       },
     });
     return {

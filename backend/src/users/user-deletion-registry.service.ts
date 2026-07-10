@@ -4,6 +4,8 @@ import { EntityManager, Repository } from 'typeorm';
 import { DeletedUserRecord } from './deleted-user-record.entity';
 import { User } from './user.entity';
 
+// User deletion registry: maintains permanent deletion records to prevent re-signup with same email and rejected login attempts
+// Stores snapshot of user profile at deletion time for compliance/audit trails
 @Injectable()
 export class UserDeletionRegistryService {
   constructor(
@@ -17,6 +19,7 @@ export class UserDeletionRegistryService {
       : this.deletedUserRecordRepo;
   }
 
+  // Normalize email to lowercase for consistency in deletion lookups
   normalizeEmail(email: string) {
     return email.trim().toLowerCase();
   }

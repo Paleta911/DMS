@@ -34,6 +34,7 @@ export class DocumentsWorkflowService {
     createdBy: User | null,
     wasApproved: boolean,
   ) {
+    // First upload initializes workflow; approved docs reset when receiving a new version.
     if (!document.approvals || document.approvals.length === 0) {
       await this.initializeApprovals(document, createdBy);
       return;
@@ -70,6 +71,7 @@ export class DocumentsWorkflowService {
     if (!document) {
       throw new NotFoundException('Documento no encontrado');
     }
+    // El flujo exige responsables explicitos para Reviso y Aprobo.
     const revisoUser = await this.userRepo.findOne({
       where: { id: revisoUserId },
     });
@@ -96,6 +98,7 @@ export class DocumentsWorkflowService {
     if (!document) {
       throw new NotFoundException('Documento no encontrado');
     }
+    // Solo admin o autor del documento pueden enviar a revision.
     if (!isAdmin && document.createdBy?.id !== actorId) {
       throw new ForbiddenException('No autorizado');
     }
@@ -113,6 +116,7 @@ export class DocumentsWorkflowService {
     await this.resetApprovals(document);
     document.status = DocumentStatus.InReview;
     await this.documentRepo.save(document);
+    // Keep search status in sync with workflow transitions.
     this.searchService.enqueueIndexDocument(document.id);
     return this.getWorkflow(documentId);
   }
@@ -134,6 +138,7 @@ export class DocumentsWorkflowService {
     const approval = document.approvals?.find(
       (item) => item.step === params.step,
     );
+    // Cada paso solo puede ser decidido por el usuario asignado.
     if (!approval?.user || approval.user.id !== params.actorId) {
       throw new ForbiddenException('No autorizado');
     }
@@ -144,6 +149,7 @@ export class DocumentsWorkflowService {
     await this.approvalRepo.save(approval);
 
     if (params.decision === ApprovalDecision.Rejected) {
+      // Cualquier rechazo regresa el documento a borrador.
       document.status = DocumentStatus.Draft;
       await this.documentRepo.save(document);
       this.searchService.enqueueIndexDocument(document.id);
@@ -151,6 +157,7 @@ export class DocumentsWorkflowService {
       params.step === ApprovalStep.Aprobo &&
       params.decision === ApprovalDecision.Approved
     ) {
+      // Solo la aprobacion del paso final publica el documento como aprobado.
       document.status = DocumentStatus.Approved;
       await this.documentRepo.save(document);
       this.searchService.enqueueIndexDocument(document.id);
@@ -176,7 +183,11 @@ export class DocumentsWorkflowService {
     assertAssignmentEligibility(user, kind);
   }
 
-  private async initializeApprovals(document: Document, createdBy: User | null) {
+  private async initializeApprovals(
+    document: Document,
+    createdBy: User | null,
+  ) {
+    // Crea la trilogia fija del workflow: Elaboro, Reviso y Aprobo.
     const approvals: DocumentApproval[] = [
       this.approvalRepo.create({
         document,
@@ -205,6 +216,7 @@ export class DocumentsWorkflowService {
     step: ApprovalStep,
     user: User,
   ) {
+    // Reasigna (o crea) el paso y limpia cualquier decision previa.
     let approval = document.approvals?.find((item) => item.step === step);
     if (!approval) {
       approval = this.approvalRepo.create({
@@ -221,6 +233,7 @@ export class DocumentsWorkflowService {
   }
 
   private async resetApprovals(document: Document) {
+    // Preserve reviewer/approver assignments but clear prior decisions/comments.
     const approvals = await this.approvalRepo.find({
       where: { document: { id: document.id } },
     });

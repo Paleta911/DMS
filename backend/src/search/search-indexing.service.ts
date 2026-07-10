@@ -65,6 +65,7 @@ export class SearchIndexingService implements OnModuleInit, OnModuleDestroy {
   }
 
   async onModuleInit() {
+    // Worker starts only after an initial readiness check to avoid noisy early failures.
     await this.searchEngineService.ensureElasticReady();
     this.startIndexingWorker();
   }
@@ -77,6 +78,7 @@ export class SearchIndexingService implements OnModuleInit, OnModuleDestroy {
   }
 
   enqueueIndexDocument(documentId: number) {
+    // In fallback mode there is no queue because search indexing is intentionally disabled.
     if (this.searchEngineService.isFallbackMode()) {
       return;
     }
@@ -237,6 +239,7 @@ export class SearchIndexingService implements OnModuleInit, OnModuleDestroy {
       });
 
       if (!current) {
+        // Upsert-like behavior keeps one queue row per document.
         try {
           await this.searchIndexJobRepo.insert({
             documentId,
@@ -352,6 +355,7 @@ export class SearchIndexingService implements OnModuleInit, OnModuleDestroy {
       return;
     }
     this.indexingWorker = setInterval(() => {
+      // Polling cadence is env-tunable for web vs worker deployment profiles.
       void this.processIndexQueue();
     }, this.indexingWorkerIntervalMs);
     void this.recordQueueWorkerSnapshot();

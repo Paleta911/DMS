@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { DocumentType } from './document-type.entity';
 
+// Query service for document type catalog with filtering and pagination support.
 @Injectable()
 export class DocumentTypesQueryService {
   constructor(
@@ -18,6 +19,7 @@ export class DocumentTypesQueryService {
     limit?: number;
   }) {
     const q = params?.q?.trim();
+    // Preserve legacy behavior: active-only unless explicitly widened.
     const status =
       params?.status ?? (params?.includeInactive ? 'all' : 'active');
     const page = params?.page ?? 1;

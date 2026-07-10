@@ -19,16 +19,12 @@ jobs:
       DB_HOST: 127.0.0.1
       DB_PORT: 1433
       DB_USER: sa
-      DB_PASS: DmsDevPass!2026
       DB_NAME: DMS
       DB_ENCRYPT: false
       DB_TRUST_CERT: true
-      MSSQL_SA_PASSWORD: DmsDevPass!2026
-      JWT_SECRET: ci_jwt_secret_2026_local_only
       JWT_EXPIRES_IN: 1d
       ES_NODE: http://127.0.0.1:9200
       EMAIL_MODE: console
-      BOOTSTRAP_TOKEN: ci-bootstrap-token
       LOG_FORMAT: json
 
     steps:
@@ -43,6 +39,18 @@ jobs:
           cache-dependency-path: |
             backend/package-lock.json
             frontend/package-lock.json
+
+      - name: Generate CI runtime secrets
+        shell: bash
+        run: |
+          sql_password="Ci$(openssl rand -hex 16)!Aa1"
+          {
+            echo "DB_PASS=${sql_password}"
+            echo "MSSQL_SA_PASSWORD=${sql_password}"
+            echo "JWT_SECRET=ci_jwt_$(openssl rand -hex 32)"
+            echo "JWT_REFRESH_SECRET=ci_refresh_$(openssl rand -hex 32)"
+            echo "BOOTSTRAP_TOKEN=ci_bootstrap_$(openssl rand -hex 32)"
+          } >> "$GITHUB_ENV"
 
       - name: Install backend dependencies
         working-directory: backend

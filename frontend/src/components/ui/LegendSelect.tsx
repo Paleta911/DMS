@@ -1,6 +1,7 @@
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
-import { ChevronDown } from 'lucide-react';
+import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { ChevronDown } from "lucide-react";
 
+// Custom select with optional color legend dot, outside-click handling, and keyboard close.
 export type LegendSelectOption = {
   value: string;
   label: string;
@@ -27,9 +28,9 @@ function LegendDot({ className }: { className?: string }) {
     <span
       aria-hidden="true"
       className={[
-        'inline-flex h-3.5 w-3.5 rounded-full border border-white/10 shadow-[0_0_0_3px_rgba(15,23,42,0.12)]',
+        "inline-flex h-3.5 w-3.5 rounded-full border border-white/10 shadow-[0_0_0_3px_rgba(15,23,42,0.12)]",
         className,
-      ].join(' ')}
+      ].join(" ")}
     />
   );
 }
@@ -60,6 +61,7 @@ export function LegendSelect({
       return undefined;
     }
 
+    // Dismiss dropdown when user clicks outside control.
     const handlePointerDown = (event: MouseEvent) => {
       if (!rootRef.current?.contains(event.target as Node)) {
         setOpen(false);
@@ -67,17 +69,17 @@ export function LegendSelect({
     };
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
+      if (event.key === "Escape") {
         setOpen(false);
       }
     };
 
-    window.addEventListener('mousedown', handlePointerDown);
-    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener("mousedown", handlePointerDown);
+    window.addEventListener("keydown", handleKeyDown);
 
     return () => {
-      window.removeEventListener('mousedown', handlePointerDown);
-      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener("mousedown", handlePointerDown);
+      window.removeEventListener("keydown", handleKeyDown);
     };
   }, [open]);
 
@@ -100,20 +102,25 @@ export function LegendSelect({
           aria-expanded={open}
           aria-describedby={errorId}
           className={[
-            'flex w-full items-center gap-3 rounded-xl border border-brand-border bg-brand-surface px-4 py-2 text-left text-brand-text shadow-sm outline-none transition focus:border-brand-primary/60 focus:ring-2 focus:ring-brand-accent/20 disabled:cursor-not-allowed disabled:opacity-60',
-            error ? 'border-ember/70' : '',
+            "flex w-full items-center gap-3 rounded-xl border border-brand-border bg-brand-surface px-4 py-2 text-left text-brand-text shadow-sm outline-none transition focus:border-brand-primary/60 focus:ring-2 focus:ring-brand-accent/20 disabled:cursor-not-allowed disabled:opacity-60",
+            error ? "border-ember/70" : "",
             className,
           ]
             .filter(Boolean)
-            .join(' ')}
+            .join(" ")}
           onClick={() => setOpen((current) => !current)}
         >
-          <span className="min-w-0 flex-1 truncate">{selectedOption?.label ?? ''}</span>
+          <span className="min-w-0 flex-1 truncate">
+            {selectedOption?.label ?? ""}
+          </span>
           <div className="ml-auto flex items-center gap-3">
             <LegendDot className={selectedOption?.dotClassName} />
             <ChevronDown
               size={18}
-              className={['text-brand-textMuted transition-transform', open ? 'rotate-180' : ''].join(' ')}
+              className={[
+                "text-brand-textMuted transition-transform",
+                open ? "rotate-180" : "",
+              ].join(" ")}
             />
           </div>
         </button>
@@ -129,22 +136,24 @@ export function LegendSelect({
                 const isSelected = option.value === value;
                 return (
                   <button
-                    key={option.value || '__empty__'}
+                    key={option.value || "__empty__"}
                     type="button"
                     role="option"
                     aria-selected={isSelected}
                     className={[
-                      'flex items-center gap-3 rounded-xl px-3 py-2 text-left text-sm text-brand-text transition hover:bg-brand-bg',
-                      isSelected ? 'bg-brand-bg' : '',
+                      "flex items-center gap-3 rounded-xl px-3 py-2 text-left text-sm text-brand-text transition hover:bg-brand-bg",
+                      isSelected ? "bg-brand-bg" : "",
                     ]
                       .filter(Boolean)
-                      .join(' ')}
+                      .join(" ")}
                     onClick={() => {
                       onChange(option.value);
                       setOpen(false);
                     }}
                   >
-                    <span className="min-w-0 flex-1 truncate">{option.label}</span>
+                    <span className="min-w-0 flex-1 truncate">
+                      {option.label}
+                    </span>
                     <LegendDot className={option.dotClassName} />
                   </button>
                 );

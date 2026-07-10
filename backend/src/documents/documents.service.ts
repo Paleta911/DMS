@@ -38,6 +38,7 @@ export class DocumentsService {
     ocrApplied?: boolean;
     ocrPageCount?: number | null;
   }) {
+    // Upload delegates persistence + version creation to mutation service.
     return this.documentsMutationService.upload(params);
   }
 
@@ -100,6 +101,7 @@ export class DocumentsService {
     allowedAreaCodes?: string[] | null,
     includeHiddenStatuses = false,
   ) {
+    // Centralized guard for area/status visibility checks.
     return this.documentsAccessService.ensureAccess(
       documentId,
       allowedAreaCodes,
@@ -159,7 +161,11 @@ export class DocumentsService {
   }
 
   async submitReview(documentId: number, actorId: number, isAdmin: boolean) {
-    return this.documentsWorkflowService.submitReview(documentId, actorId, isAdmin);
+    return this.documentsWorkflowService.submitReview(
+      documentId,
+      actorId,
+      isAdmin,
+    );
   }
 
   async reviewDecision(params: {
@@ -177,6 +183,7 @@ export class DocumentsService {
   }
 
   async reprocessContent(params?: { documentId?: number; force?: boolean }) {
+    // Rebuilds extracted content (including OCR path) for existing versions.
     return this.documentsContentMaintenanceService.reprocessContent(params);
   }
 }

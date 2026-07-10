@@ -7,6 +7,7 @@ import { HttpAuditService } from './http-audit.service';
 import { AuditLogWriteService } from './audit-log-write.service';
 import { AuditLogQueryService } from './audit-log-query.service';
 
+// Audit module provides write/query/export services for compliance and operational traceability.
 @Module({
   imports: [TypeOrmModule.forFeature([AuditLog])],
   providers: [

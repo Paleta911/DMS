@@ -69,6 +69,7 @@ function extractLoginBlockedState(
   error: unknown,
   email: string,
 ): LoginBlockedState | null {
+  // Maps API lockout payload to local countdown state.
   const payload = getApiErrorPayload(error);
   if (payload?.code !== "AUTH_LOGIN_ACCOUNT_BLOCKED") {
     return null;
@@ -150,6 +151,7 @@ export default function LoginPage() {
     }
 
     const syncRemaining = () => {
+      // Keep UI timer aligned with server-provided block expiration.
       const remainingSec = clampRemainingSeconds(
         loginBlockedState.blockedUntil,
       );
@@ -188,6 +190,7 @@ export default function LoginPage() {
       notify("Bienvenido al SGCI - CEP", "success");
       navigate("/documents");
     } catch (error: any) {
+      // Prioritize explicit auth states before falling back to generic message handling.
       const blockedState = extractLoginBlockedState(error, values.email);
       if (blockedState) {
         setLoginBlockedStateState(blockedState);

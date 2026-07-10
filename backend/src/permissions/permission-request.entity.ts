@@ -19,6 +19,8 @@ export enum PermissionRequestType {
   Areas = 'AREAS',
 }
 
+// Persistence model for both permission and area self-service requests.
+// Requested values are stored as JSON strings for backward compatibility.
 @Entity()
 export class PermissionRequest {
   @PrimaryGeneratedColumn()

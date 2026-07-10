@@ -1,5 +1,12 @@
 import path from 'node:path';
-import { buildManifest, copyStorageTree, ensureDir, listFilesRecursively, resolveStorageEnv, writeManifest } from './storage-lib.mjs';
+import {
+  buildManifest,
+  copyStorageTree,
+  ensureDir,
+  listFilesRecursively,
+  resolveStorageEnv,
+  writeManifest,
+} from './storage-lib.mjs';
 
 async function main() {
   const { uploadDir, backupDir } = resolveStorageEnv();
@@ -9,6 +16,7 @@ async function main() {
   const manifestPath = path.join(backupRoot, 'manifest.json');
 
   await ensureDir(dataDir);
+  // Congela el listado antes de copiar para que manifest y respaldo describan el mismo estado.
   const files = await listFilesRecursively(uploadDir);
   const manifest = await buildManifest(uploadDir, files);
   await copyStorageTree({
@@ -17,6 +25,7 @@ async function main() {
     files,
   });
   await writeManifest(manifestPath, {
+    // Guarda contexto de origen/destino para auditoria y restores posteriores.
     ...manifest,
     sourceUploadDir: uploadDir,
     backupRoot,

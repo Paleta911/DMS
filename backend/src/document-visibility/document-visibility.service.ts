@@ -5,6 +5,8 @@ import { DocumentStatus } from '../documents/document-status.enum';
 import { DocumentVisibilityPolicy } from './document-visibility-policy.entity';
 import { UpdateDocumentVisibilityDto } from './dto/update-document-visibility.dto';
 
+// Document visibility policy service controls which document statuses are visible to regular users (not admins)
+// Cached for 5 seconds to avoid repeated DB queries; configurable per-status visibility
 export type DocumentVisibilityPolicyState = {
   draftVisibleToUsers: boolean;
   inReviewVisibleToUsers: boolean;
@@ -14,7 +16,7 @@ export type DocumentVisibilityPolicyState = {
 };
 
 const POLICY_ID = 1;
-const CACHE_TTL_MS = 5000;
+const CACHE_TTL_MS = 5000; // Cache for 5 seconds to reduce DB load on frequent policy checks
 const DEFAULT_POLICY: Omit<DocumentVisibilityPolicyState, 'updatedAt'> = {
   draftVisibleToUsers: true,
   inReviewVisibleToUsers: true,
@@ -24,19 +26,20 @@ const DEFAULT_POLICY: Omit<DocumentVisibilityPolicyState, 'updatedAt'> = {
 
 @Injectable()
 export class DocumentVisibilityService {
-  private cache:
-    | {
-        value: DocumentVisibilityPolicyState;
-        expiresAt: number;
-      }
-    | null = null;
+  // In-memory cache with TTL for policy state to reduce DB round-trips
+  private cache: {
+    value: DocumentVisibilityPolicyState;
+    expiresAt: number;
+  } | null = null;
 
   constructor(
     @InjectRepository(DocumentVisibilityPolicy)
     private readonly policyRepo: Repository<DocumentVisibilityPolicy>,
   ) {}
 
-  async getPolicy(forceRefresh = false): Promise<DocumentVisibilityPolicyState> {
+  async getPolicy(
+    forceRefresh = false,
+  ): Promise<DocumentVisibilityPolicyState> {
     const now = Date.now();
     if (!forceRefresh && this.cache && this.cache.expiresAt > now) {
       return this.cache.value;
@@ -113,7 +116,9 @@ export class DocumentVisibilityService {
     return this.policyRepo.save(created);
   }
 
-  private serialize(policy: DocumentVisibilityPolicy): DocumentVisibilityPolicyState {
+  private serialize(
+    policy: DocumentVisibilityPolicy,
+  ): DocumentVisibilityPolicyState {
     return {
       draftVisibleToUsers: policy.draftVisibleToUsers,
       inReviewVisibleToUsers: policy.inReviewVisibleToUsers,

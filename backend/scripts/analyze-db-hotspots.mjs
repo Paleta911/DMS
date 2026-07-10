@@ -9,6 +9,7 @@ function logSection(title) {
 }
 
 async function timedQuery(pool, label, query) {
+  // Mide latencia y cardinalidad para detectar consultas candidatas a tuning.
   const startedAt = performance.now();
   const result = await pool.request().query(query);
   const durationMs = Math.round((performance.now() - startedAt) * 100) / 100;
@@ -40,6 +41,7 @@ async function main() {
       SELECT t.name AS tableName, SUM(p.rows) AS [rowCount]
       FROM sys.tables t
       JOIN sys.partitions p ON t.object_id = p.object_id
+      -- 0=heap y 1=clustered index: evita duplicar conteos de indices no clustered.
       WHERE p.index_id IN (0,1)
         AND t.name IN (
           'user',
@@ -61,6 +63,7 @@ async function main() {
     }
 
     logSection('representative queries');
+    // Toma valores existentes para construir filtros realistas en mediciones base.
     const firstArea = await pool
       .request()
       .query(`SELECT TOP 1 code FROM [area_code] WHERE [activo] = 1 ORDER BY [code] ASC`);

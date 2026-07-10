@@ -1,7 +1,4 @@
-import {
-  BadRequestException,
-  Injectable,
-} from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { UsersService } from '../users/users.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { VerifyEmailDto } from './dto/verify-email.dto';
@@ -9,6 +6,8 @@ import { VerificationService } from './verification.service';
 import { UserStatus } from '../users/user-status.enum';
 import { VerificationEmailDto } from './dto/verification-email.dto';
 
+// Email verification flow service: validates 6-digit codes and transitions users from PendingVerification to PendingApproval
+// Enforce check for rejected registrations; logs verification failures for audit trail
 @Injectable()
 export class AuthEmailVerificationFlowService {
   constructor(
@@ -17,6 +16,7 @@ export class AuthEmailVerificationFlowService {
     private readonly verificationService: VerificationService,
   ) {}
 
+  // Validate email verification code: update user status from PendingVerification to PendingApproval
   async verifyEmail(
     dto: VerifyEmailDto,
     meta?: { ip?: string; userAgent?: string },
@@ -84,18 +84,25 @@ export class AuthEmailVerificationFlowService {
     }
 
     const currentRecord = await this.verificationService.getByUserId(user.id);
-    const verifyAvailability = this.verificationService.getVerifyAvailability(currentRecord);
-    if (verifyAvailability.remainingSec > 0 && verifyAvailability.blockedUntil) {
+    const verifyAvailability =
+      this.verificationService.getVerifyAvailability(currentRecord);
+    if (
+      verifyAvailability.remainingSec > 0 &&
+      verifyAvailability.blockedUntil
+    ) {
       this.verificationService.assertCanVerify(currentRecord);
     }
-    const availability = this.verificationService.assertCanResend(currentRecord);
+    const availability =
+      this.verificationService.assertCanResend(currentRecord);
 
     const code = this.verificationService.generateCode();
     await this.verificationService.createOrRefresh(user, code);
     const result = await this.verificationService.sendCode(user, code);
     const nextRecord = await this.verificationService.getByUserId(user.id);
-    const nextAvailability = this.verificationService.getResendAvailability(nextRecord);
-    const nextVerifyAvailability = this.verificationService.getVerifyAvailability(nextRecord);
+    const nextAvailability =
+      this.verificationService.getResendAvailability(nextRecord);
+    const nextVerifyAvailability =
+      this.verificationService.getVerifyAvailability(nextRecord);
 
     await this.auditLogService.log({
       userId: user.id,
@@ -128,12 +135,14 @@ export class AuthEmailVerificationFlowService {
 
     const record = await this.verificationService.getByUserId(user.id);
     const availability = this.verificationService.getResendAvailability(record);
-    const verifyAvailability = this.verificationService.getVerifyAvailability(record);
+    const verifyAvailability =
+      this.verificationService.getVerifyAvailability(record);
 
     return {
       email: user.email,
       status: user.status,
-      canResend: availability.canResend && verifyAvailability.remainingSec === 0,
+      canResend:
+        availability.canResend && verifyAvailability.remainingSec === 0,
       remainingSec: availability.remainingSec,
       nextAllowedAt: availability.nextAllowedAt,
       lastSentAt: availability.lastSentAt,

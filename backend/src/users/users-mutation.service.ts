@@ -8,6 +8,8 @@ import { PermissionFlags } from './permissions';
 import { UserStatus } from './user-status.enum';
 import { getEnvNumber } from '../common/env.utils';
 
+// User mutation service: create, update, and area assignment with transaction-aware EntityManager support
+// Encapsulates user creation with role/status/permission defaults; manages area code relationships
 @Injectable()
 export class UsersMutationService {
   constructor(
@@ -19,7 +21,12 @@ export class UsersMutationService {
     return manager ? manager.getRepository(User) : this.userRepo;
   }
 
-  async setAllowedAreas(userId: number, areas: AreaCode[], manager?: EntityManager) {
+  // Set user's allowed area codes (admin-assigned operational areas with permissions)
+  async setAllowedAreas(
+    userId: number,
+    areas: AreaCode[],
+    manager?: EntityManager,
+  ) {
     const repo = this.userRepository(manager);
     const user = await repo.findOne({
       where: { id: userId },

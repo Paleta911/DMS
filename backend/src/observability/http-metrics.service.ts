@@ -13,10 +13,14 @@ type RouteStats = {
 type StatusBucket = '2xx' | '3xx' | '4xx' | '5xx' | 'other';
 type StatusCounts = Record<StatusBucket, number>;
 
+// In-memory HTTP metrics aggregator used by JSON metrics endpoint and Prometheus bridge.
 @Injectable()
 export class HttpMetricsService {
   private readonly startedAt = Date.now();
-  private readonly slowRequestThresholdMs = getEnvNumber('HTTP_SLOW_REQUEST_MS', 1000);
+  private readonly slowRequestThresholdMs = getEnvNumber(
+    'HTTP_SLOW_REQUEST_MS',
+    1000,
+  );
   private totalRequests = 0;
   private totalErrors = 0;
   private totalSlowRequests = 0;
@@ -31,6 +35,7 @@ export class HttpMetricsService {
     statusCode: number;
     durationMs: number;
   }) {
+    // Normalize path and method so route stats aggregate dynamic URLs coherently.
     const method = params.method.toUpperCase();
     const path = this.normalizePath(params.path);
     const key = `${method} ${path}`;
@@ -72,11 +77,16 @@ export class HttpMetricsService {
         requests: stats.count,
         errors: stats.errors,
         slowRequests: stats.slowRequests,
-        errorRate: stats.count > 0 ? Number((stats.errors / stats.count).toFixed(4)) : 0,
+        errorRate:
+          stats.count > 0 ? Number((stats.errors / stats.count).toFixed(4)) : 0,
         slowRate:
-          stats.count > 0 ? Number((stats.slowRequests / stats.count).toFixed(4)) : 0,
+          stats.count > 0
+            ? Number((stats.slowRequests / stats.count).toFixed(4))
+            : 0,
         avgDurationMs:
-          stats.count > 0 ? Number((stats.totalDurationMs / stats.count).toFixed(2)) : 0,
+          stats.count > 0
+            ? Number((stats.totalDurationMs / stats.count).toFixed(2))
+            : 0,
         maxDurationMs: stats.maxDurationMs,
         statusCounts: { ...stats.statusCounts },
       }))
@@ -121,6 +131,7 @@ export class HttpMetricsService {
   }
 
   normalizePath(path: string) {
+    // Remove query string and collapse dynamic segments to stable route tokens.
     const [cleanPath] = (path ?? '/').split('?');
     const normalized = (cleanPath || '/')
       .split('/')

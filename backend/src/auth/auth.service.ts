@@ -21,6 +21,7 @@ export class AuthService {
     dto: RegisterDto,
     meta?: { actorId?: number; ip?: string; userAgent?: string },
   ) {
+    // Thin facade: orchestration lives in specialized auth services.
     return this.authRegistrationService.register(dto, meta);
   }
 
@@ -28,10 +29,7 @@ export class AuthService {
     return this.authRegistrationService.bootstrapAdmin(dto);
   }
 
-  async login(
-    dto: LoginDto,
-    meta?: { ip?: string; userAgent?: string },
-  ) {
+  async login(dto: LoginDto, meta?: { ip?: string; userAgent?: string }) {
     return this.authLoginService.login(dto, meta);
   }
 
@@ -57,6 +55,7 @@ export class AuthService {
     dto: RefreshTokenDto,
     meta?: { ip?: string; userAgent?: string },
   ) {
+    // Refresh flow is delegated so token policy stays centralized.
     return this.authLoginService.refreshSession(dto, meta);
   }
 }

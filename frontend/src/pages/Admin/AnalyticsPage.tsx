@@ -1,90 +1,91 @@
-import { useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { adminAnalyticsSummary } from '../../api/endpoints/adminAnalytics';
-import { useAuth } from '../../auth/AuthContext';
-import { AccessDenied } from '../../components/AccessDenied';
-import { PageContainer } from '../../components/layout/PageContainer';
-import { PageHeader } from '../../components/layout/PageHeader';
-import { SectionCard } from '../../components/layout/SectionCard';
-import { NoticeBanner } from '../../components/ui/NoticeBanner';
-import { Spinner } from '../../components/ui/Spinner';
-import { Pill } from '../../components/ui/Badge';
-import { queryKeys } from '../../app/queryKeys';
-import { useFeatureFlag } from '../../features/FeatureFlagsProvider';
-import { formatDate } from '../../utils/date';
-import { translateStatus } from '../../utils/labels';
+import { useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { adminAnalyticsSummary } from "../../api/endpoints/adminAnalytics";
+import { useAuth } from "../../auth/AuthContext";
+import { AccessDenied } from "../../components/AccessDenied";
+import { PageContainer } from "../../components/layout/PageContainer";
+import { PageHeader } from "../../components/layout/PageHeader";
+import { SectionCard } from "../../components/layout/SectionCard";
+import { NoticeBanner } from "../../components/ui/NoticeBanner";
+import { Spinner } from "../../components/ui/Spinner";
+import { Pill } from "../../components/ui/Badge";
+import { queryKeys } from "../../app/queryKeys";
+import { useFeatureFlag } from "../../features/FeatureFlagsProvider";
+import { formatDate } from "../../utils/date";
+import { translateStatus } from "../../utils/labels";
 
+// Admin analytics dashboard: summarizes registrations, permissions, documents, audit activity, and search health.
 const ANALYTICS_ACTION_LABELS: Record<string, string> = {
-  AUTH_LOGIN_SUCCESS: 'Inicio de sesión exitoso',
-  AUTH_LOGIN_FAIL: 'Inicio de sesión fallido',
-  REGISTER: 'Registro de usuario',
-  EMAIL_SENT: 'Correo enviado',
-  EMAIL_FAILED: 'Fallo de envío de correo',
-  EMAIL_VERIFIED: 'Correo verificado',
-  EMAIL_VERIFY_FAILED: 'Fallo en verificación de correo',
-  AUTH_LOGIN_BLOCKED: 'Inicio de sesión bloqueado',
-  AUTH_REFRESH_SUCCESS: 'Renovación de sesión exitosa',
-  AUTH_REFRESH_FAIL: 'Fallo en renovación de sesión',
-  REG_APPROVED: 'Registro aprobado',
-  REG_REJECTED: 'Registro rechazado',
-  REG_RESTORED: 'Registro restaurado',
-  USER_DELETED: 'Usuario eliminado',
-  USER_SUSPENDED: 'Cuenta suspendida',
-  USER_RESTORED: 'Cuenta restaurada',
-  USER_HARD_DELETED: 'Cuenta eliminada definitivamente',
-  USER_PROFILE_UPDATED: 'Perfil actualizado',
-  PERMISSION_REQUEST_CREATED: 'Solicitud creada',
-  PERMISSION_REQUEST_APPROVED: 'Solicitud aprobada',
-  PERMISSION_REQUEST_REJECTED: 'Solicitud rechazada',
-  DOCUMENT_UPLOAD: 'Documento cargado',
-  DOCUMENT_UPDATE: 'Documento actualizado',
-  VERSION_DOWNLOAD: 'Versión descargada',
-  SEARCH_QUERY: 'Búsqueda realizada',
-  ACCESS_DENIED: 'Acceso denegado',
-  WORKFLOW_SUBMIT: 'Envío a revisión',
-  WORKFLOW_ASSIGN: 'Asignación de revisión/aprobación',
-  WORKFLOW_REVIEW_DECISION: 'Decisión de revisión',
-  WORKFLOW_APPROVAL_DECISION: 'Decisión de aprobación',
-  WORKFLOW_STATUS_CHANGE: 'Cambio de estado de flujo',
-  WORKFLOW_RESET_ON_NEW_VERSION: 'Reinicio de flujo por nueva versión',
-  DOCUMENT_TYPE_CREATED: 'Tipo de documento creado',
-  DOCUMENT_TYPE_UPDATED: 'Tipo de documento actualizado',
-  DOCUMENT_TYPE_DELETED: 'Tipo de documento eliminado',
-  DOCUMENT_TYPE_DEACTIVATED: 'Tipo de documento desactivado',
-  CATEGORY_CREATED: 'Categoría creada',
-  CATEGORY_UPDATED: 'Categoría actualizada',
-  CATEGORY_DEACTIVATED: 'Categoría desactivada',
-  CATEGORY_DELETED: 'Categoría eliminada',
-  AREA_CODE_CREATED: 'Área creada',
-  AREA_CODE_UPDATED: 'Área actualizada',
-  AREA_CODE_DELETED: 'Área eliminada',
-  AREA_CODE_DEACTIVATED: 'Área desactivada',
-  USER_AREAS_UPDATED: 'Áreas de usuario actualizadas',
-  DOCUMENT_CONTENT_REPROCESS: 'Reproceso de contenido documental',
-  DOCUMENT_VISIBILITY_POLICY_UPDATED: 'Visibilidad documental actualizada',
+  AUTH_LOGIN_SUCCESS: "Inicio de sesión exitoso",
+  AUTH_LOGIN_FAIL: "Inicio de sesión fallido",
+  REGISTER: "Registro de usuario",
+  EMAIL_SENT: "Correo enviado",
+  EMAIL_FAILED: "Fallo de envío de correo",
+  EMAIL_VERIFIED: "Correo verificado",
+  EMAIL_VERIFY_FAILED: "Fallo en verificación de correo",
+  AUTH_LOGIN_BLOCKED: "Inicio de sesión bloqueado",
+  AUTH_REFRESH_SUCCESS: "Renovación de sesión exitosa",
+  AUTH_REFRESH_FAIL: "Fallo en renovación de sesión",
+  REG_APPROVED: "Registro aprobado",
+  REG_REJECTED: "Registro rechazado",
+  REG_RESTORED: "Registro restaurado",
+  USER_DELETED: "Usuario eliminado",
+  USER_SUSPENDED: "Cuenta suspendida",
+  USER_RESTORED: "Cuenta restaurada",
+  USER_HARD_DELETED: "Cuenta eliminada definitivamente",
+  USER_PROFILE_UPDATED: "Perfil actualizado",
+  PERMISSION_REQUEST_CREATED: "Solicitud creada",
+  PERMISSION_REQUEST_APPROVED: "Solicitud aprobada",
+  PERMISSION_REQUEST_REJECTED: "Solicitud rechazada",
+  DOCUMENT_UPLOAD: "Documento cargado",
+  DOCUMENT_UPDATE: "Documento actualizado",
+  VERSION_DOWNLOAD: "Versión descargada",
+  SEARCH_QUERY: "Búsqueda realizada",
+  ACCESS_DENIED: "Acceso denegado",
+  WORKFLOW_SUBMIT: "Envío a revisión",
+  WORKFLOW_ASSIGN: "Asignación de revisión/aprobación",
+  WORKFLOW_REVIEW_DECISION: "Decisión de revisión",
+  WORKFLOW_APPROVAL_DECISION: "Decisión de aprobación",
+  WORKFLOW_STATUS_CHANGE: "Cambio de estado de flujo",
+  WORKFLOW_RESET_ON_NEW_VERSION: "Reinicio de flujo por nueva versión",
+  DOCUMENT_TYPE_CREATED: "Tipo de documento creado",
+  DOCUMENT_TYPE_UPDATED: "Tipo de documento actualizado",
+  DOCUMENT_TYPE_DELETED: "Tipo de documento eliminado",
+  DOCUMENT_TYPE_DEACTIVATED: "Tipo de documento desactivado",
+  CATEGORY_CREATED: "Categoría creada",
+  CATEGORY_UPDATED: "Categoría actualizada",
+  CATEGORY_DEACTIVATED: "Categoría desactivada",
+  CATEGORY_DELETED: "Categoría eliminada",
+  AREA_CODE_CREATED: "Área creada",
+  AREA_CODE_UPDATED: "Área actualizada",
+  AREA_CODE_DELETED: "Área eliminada",
+  AREA_CODE_DEACTIVATED: "Área desactivada",
+  USER_AREAS_UPDATED: "Áreas de usuario actualizadas",
+  DOCUMENT_CONTENT_REPROCESS: "Reproceso de contenido documental",
+  DOCUMENT_VISIBILITY_POLICY_UPDATED: "Visibilidad documental actualizada",
 };
 
 const REQUEST_TYPE_LABELS: Record<string, string> = {
-  PERMISSIONS: 'Permisos',
-  AREAS: 'Áreas',
+  PERMISSIONS: "Permisos",
+  AREAS: "Áreas",
 };
 
 const SEARCH_STATUS_LABELS: Record<string, string> = {
-  up: 'activo',
-  down: 'inactivo',
-  unknown: 'desconocido',
+  up: "activo",
+  down: "inactivo",
+  unknown: "desconocido",
 };
 
 function translateAnalyticsBucketLabel(
   label: string,
-  kind: 'status' | 'requestType' | 'auditAction' | 'raw',
+  kind: "status" | "requestType" | "auditAction" | "raw",
 ) {
   switch (kind) {
-    case 'status':
+    case "status":
       return translateStatus(label);
-    case 'requestType':
+    case "requestType":
       return REQUEST_TYPE_LABELS[label] ?? label;
-    case 'auditAction':
+    case "auditAction":
       return ANALYTICS_ACTION_LABELS[label] ?? label;
     default:
       return label;
@@ -106,7 +107,9 @@ function SummaryCard({
         {title}
       </div>
       <div className="font-display text-3xl text-brand-primary">{value}</div>
-      {helper ? <div className="text-sm text-brand-textMuted">{helper}</div> : null}
+      {helper ? (
+        <div className="text-sm text-brand-textMuted">{helper}</div>
+      ) : null}
     </SectionCard>
   );
 }
@@ -115,12 +118,12 @@ function ListCard({
   title,
   items,
   emptyLabel,
-  kind = 'raw',
+  kind = "raw",
 }: {
   title: string;
   items: Array<{ label: string; count: number }>;
   emptyLabel: string;
-  kind?: 'status' | 'requestType' | 'auditAction' | 'raw';
+  kind?: "status" | "requestType" | "auditAction" | "raw";
 }) {
   return (
     <SectionCard className="flex h-full flex-col gap-4">
@@ -148,7 +151,7 @@ function ListCard({
 
 export default function AnalyticsPage() {
   const { isAdmin } = useAuth();
-  const analyticsEnabled = useFeatureFlag('admin-analytics');
+  const analyticsEnabled = useFeatureFlag("admin-analytics");
   const analyticsQuery = useQuery({
     queryKey: queryKeys.analytics.summary,
     queryFn: adminAnalyticsSummary,
@@ -162,11 +165,11 @@ export default function AnalyticsPage() {
       return [];
     }
     return [
-      { label: 'Consultas Elastic', count: search.counters.queryElastic },
-      { label: 'Consultas respaldo', count: search.counters.queryFallback },
-      { label: 'Documentos indexados', count: search.counters.indexed },
-      { label: 'Reintentos', count: search.counters.retries },
-      { label: 'Descartados', count: search.counters.dropped },
+      { label: "Consultas Elastic", count: search.counters.queryElastic },
+      { label: "Consultas respaldo", count: search.counters.queryFallback },
+      { label: "Documentos indexados", count: search.counters.indexed },
+      { label: "Reintentos", count: search.counters.retries },
+      { label: "Descartados", count: search.counters.dropped },
     ];
   }, [analyticsQuery.data?.search]);
 
@@ -225,7 +228,9 @@ export default function AnalyticsPage() {
 
             <SectionCard className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <div className="font-semibold text-brand-text">Estado de búsqueda</div>
+                <div className="font-semibold text-brand-text">
+                  Estado de búsqueda
+                </div>
                 <div className="text-sm text-brand-textMuted">
                   Generado el {formatDate(analyticsQuery.data.generatedAt)}
                 </div>
@@ -233,29 +238,33 @@ export default function AnalyticsPage() {
               <div className="flex flex-wrap items-center gap-2">
                 <Pill
                   tone={
-                    analyticsQuery.data.search.elasticStatus === 'up'
-                      ? 'APPROVED'
-                      : analyticsQuery.data.search.elasticStatus === 'down'
-                        ? 'REJECTED'
-                        : 'INFO'
+                    analyticsQuery.data.search.elasticStatus === "up"
+                      ? "APPROVED"
+                      : analyticsQuery.data.search.elasticStatus === "down"
+                        ? "REJECTED"
+                        : "INFO"
                   }
                 >
-                  Elastic: {SEARCH_STATUS_LABELS[analyticsQuery.data.search.elasticStatus] ?? analyticsQuery.data.search.elasticStatus}
+                  Elastic:{" "}
+                  {SEARCH_STATUS_LABELS[
+                    analyticsQuery.data.search.elasticStatus
+                  ] ?? analyticsQuery.data.search.elasticStatus}
                 </Pill>
                 <Pill tone="INFO">
-                  Cola: {analyticsQuery.data.search.queue.pendingJobs} pendiente(s)
+                  Cola: {analyticsQuery.data.search.queue.pendingJobs}{" "}
+                  pendiente(s)
                 </Pill>
                 <Pill
                   tone={
                     analyticsQuery.data.search.queue.workerRunning
-                      ? 'APPROVED'
-                      : 'REJECTED'
+                      ? "APPROVED"
+                      : "REJECTED"
                   }
                 >
-                  Worker:{' '}
+                  Worker:{" "}
                   {analyticsQuery.data.search.queue.workerRunning
-                    ? 'activo'
-                    : 'inactivo'}
+                    ? "activo"
+                    : "inactivo"}
                 </Pill>
               </div>
             </SectionCard>

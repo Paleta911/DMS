@@ -23,6 +23,7 @@ function assert(condition, message) {
 }
 
 async function requestJson(url, options = {}) {
+  // Unified JSON/text parsing keeps smoke assertions resilient to non-JSON failures.
   const { headers, ...rest } = options;
   let res;
   try {
@@ -81,6 +82,7 @@ async function postMultipart(url, form, token) {
 }
 
 async function postMultipartWithRetry(buildForm, url, token, retries = 2) {
+  // Retries target transient socket resets common during local startup races.
   let lastError;
   for (let attempt = 0; attempt <= retries; attempt += 1) {
     const form = buildForm();
@@ -103,6 +105,7 @@ async function postMultipartWithRetry(buildForm, url, token, retries = 2) {
 }
 
 async function waitForHealth(url, attempts = 120, delayMs = 500) {
+  // Poll conservador (~60s por default) para backend recien migrado/levantado.
   for (let i = 0; i < attempts; i += 1) {
     try {
       const res = await fetch(url);
@@ -142,6 +145,7 @@ function runBuildOrThrow() {
 }
 
 function killPort(port) {
+  // Limpia procesos residuales para evitar colisiones en arranques repetidos locales.
   const netstat = spawnSync('netstat', ['-aon'], {
     encoding: 'utf8',
     shell: true,
@@ -178,6 +182,7 @@ function killPort(port) {
 }
 
 function buildPdfBuffer(text) {
+  // Generates a tiny in-memory PDF fixture for upload/indexing validation.
   const safeText = String(text).replace(/([()\\])/g, '\\$1');
   const parts = [];
   const offsets = [];
@@ -207,7 +212,9 @@ function buildPdfBuffer(text) {
   );
 
   offsets[5] = offset;
-  push('5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n');
+  push(
+    '5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n',
+  );
 
   const xrefOffset = offset;
   push('xref\n0 6\n0000000000 65535 f \n');
@@ -222,6 +229,7 @@ function buildPdfBuffer(text) {
 
 async function ensureServer(url) {
   const healthUrl = `${url}/health`;
+  // Orquesta readiness de infraestructura antes de iniciar backend productivo.
   killPort(3000);
   const db = await waitForDependency({
     label: `sqlserver ${infraEnv.dbHost}:${infraEnv.dbPort}`,
@@ -398,9 +406,9 @@ async function main() {
         documentTypesResponse.data,
       )}`,
     );
-    let activeDocumentTypes = unwrapListPayload(documentTypesResponse.data).filter(
-      (documentType) => documentType?.activo !== false,
-    );
+    let activeDocumentTypes = unwrapListPayload(
+      documentTypesResponse.data,
+    ).filter((documentType) => documentType?.activo !== false);
     if (activeDocumentTypes.length === 0) {
       const suffix = String(Date.now()).slice(-4);
       const createdDocumentType = await requestJson(
@@ -723,7 +731,9 @@ async function main() {
     );
     const listedDocuments = documents.data?.items ?? [];
     assert(
-      listedDocuments.some((document) => Number(document.id) === Number(documentId)),
+      listedDocuments.some(
+        (document) => Number(document.id) === Number(documentId),
+      ),
       '[documents:list] missing primary document',
     );
     assert(
@@ -751,10 +761,13 @@ async function main() {
       '[versions:list] expected at least 2 versions',
     );
 
-    const directVersions = await requestJson(`${baseUrl}/versions/${documentId}`, {
-      method: 'GET',
-      headers: { Authorization: `Bearer ${userToken}` },
-    });
+    const directVersions = await requestJson(
+      `${baseUrl}/versions/${documentId}`,
+      {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${userToken}` },
+      },
+    );
     assert(
       directVersions.res.ok,
       `[versions:direct-list] failed: ${directVersions.res.status} ${JSON.stringify(
@@ -883,7 +896,9 @@ async function main() {
         '[search:primary] response:',
         JSON.stringify(primarySearch?.data),
       );
-      throw new Error('[search:primary] expected at least 1 result after retries');
+      throw new Error(
+        '[search:primary] expected at least 1 result after retries',
+      );
     }
 
     let secondarySearch;

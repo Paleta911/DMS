@@ -134,6 +134,7 @@ export default function DocumentDetailPage() {
   });
 
   const invalidateDocumentScope = () => {
+    // Refreshes detail/list/search slices tied to this document.
     invalidateDocumentScopeQueries(queryClient, documentId);
   };
 
@@ -216,6 +217,7 @@ export default function DocumentDetailPage() {
     }
     const doc = documentQuery.data;
     if (!doc) return;
+    // Prefill from current document to reduce manual entry for new versions.
     setUploadForm({
       nombreDocumento: doc.nombre,
       comentario: "",
@@ -321,6 +323,7 @@ export default function DocumentDetailPage() {
     }
     setActionLoading("decision");
     try {
+      // Endpoint depends on current actor role in the workflow step.
       if (decisionOpen.type === "review") {
         await workflowReview(documentId, validation.data);
       } else {

@@ -5,6 +5,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { HttpAuditService } from '../audit-log/http-audit.service';
 
+// Controller tests focus on wiring + audit side effects for write operations.
 describe('CategoriesController', () => {
   let controller: CategoriesController;
   const categoriesService = {

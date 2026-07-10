@@ -1,36 +1,42 @@
-import { lazy, Suspense, type ReactNode } from 'react';
-import { Navigate, createBrowserRouter } from 'react-router-dom';
-import { Spinner } from '../components/ui/Spinner';
+import { lazy, Suspense, type ReactNode } from "react";
+import { Navigate, createBrowserRouter } from "react-router-dom";
+import { Spinner } from "../components/ui/Spinner";
 
 const ProtectedRoute = lazy(() =>
-  import('../auth/ProtectedRoute').then((module) => ({
+  import("../auth/ProtectedRoute").then((module) => ({
     default: module.ProtectedRoute,
   })),
 );
 const AppShell = lazy(() =>
-  import('../components/AppShell').then((module) => ({
+  import("../components/AppShell").then((module) => ({
     default: module.AppShell,
   })),
 );
-const LoginPage = lazy(() => import('../pages/LoginPage'));
-const RegisterPage = lazy(() => import('../pages/RegisterPage'));
-const VerifyEmailPage = lazy(() => import('../pages/VerifyEmailPage'));
-const RouteErrorPage = lazy(() => import('../pages/RouteErrorPage'));
-const DocumentsPage = lazy(() => import('../pages/DocumentsPage'));
-const DocumentDetailPage = lazy(() => import('../pages/DocumentDetailPage'));
-const CategoriesPage = lazy(() => import('../pages/Admin/CategoriesPage'));
-const UsersPage = lazy(() => import('../pages/Admin/UsersPage'));
-const UsersAreasPage = lazy(() => import('../pages/Admin/UsersAreasPage'));
-const AuditLogsPage = lazy(() => import('../pages/Admin/AuditLogsPage'));
-const AnalyticsPage = lazy(() => import('../pages/Admin/AnalyticsPage'));
-const TypesAreasPage = lazy(() => import('../pages/Admin/TypesAreasPage'));
-const ForbiddenPage = lazy(() => import('../pages/ForbiddenPage'));
-const ProfilePage = lazy(() => import('../pages/ProfilePage'));
-const PermissionRequestPage = lazy(() => import('../pages/PermissionRequestPage'));
-const RegistrationsPage = lazy(() => import('../pages/Admin/RegistrationsPage'));
-const PermissionRequestsPage = lazy(() => import('../pages/Admin/PermissionRequestsPage'));
+const LoginPage = lazy(() => import("../pages/LoginPage"));
+const RegisterPage = lazy(() => import("../pages/RegisterPage"));
+const VerifyEmailPage = lazy(() => import("../pages/VerifyEmailPage"));
+const RouteErrorPage = lazy(() => import("../pages/RouteErrorPage"));
+const DocumentsPage = lazy(() => import("../pages/DocumentsPage"));
+const DocumentDetailPage = lazy(() => import("../pages/DocumentDetailPage"));
+const CategoriesPage = lazy(() => import("../pages/Admin/CategoriesPage"));
+const UsersPage = lazy(() => import("../pages/Admin/UsersPage"));
+const UsersAreasPage = lazy(() => import("../pages/Admin/UsersAreasPage"));
+const AuditLogsPage = lazy(() => import("../pages/Admin/AuditLogsPage"));
+const AnalyticsPage = lazy(() => import("../pages/Admin/AnalyticsPage"));
+const TypesAreasPage = lazy(() => import("../pages/Admin/TypesAreasPage"));
+const ForbiddenPage = lazy(() => import("../pages/ForbiddenPage"));
+const ProfilePage = lazy(() => import("../pages/ProfilePage"));
+const PermissionRequestPage = lazy(
+  () => import("../pages/PermissionRequestPage"),
+);
+const RegistrationsPage = lazy(
+  () => import("../pages/Admin/RegistrationsPage"),
+);
+const PermissionRequestsPage = lazy(
+  () => import("../pages/Admin/PermissionRequestsPage"),
+);
 const PermissionRequestDetailPage = lazy(
-  () => import('../pages/Admin/PermissionRequestDetailPage'),
+  () => import("../pages/Admin/PermissionRequestDetailPage"),
 );
 
 function withSuspense(element: ReactNode) {
@@ -48,18 +54,20 @@ function withSuspense(element: ReactNode) {
 }
 
 export const router = createBrowserRouter([
+  // Public auth routes.
   {
-    path: '/login',
+    path: "/login",
     element: withSuspense(<LoginPage />),
     errorElement: withSuspense(<RouteErrorPage />),
   },
+  // Protected app routes wrapped by auth guard and shell layout.
   {
-    path: '/register',
+    path: "/register",
     element: withSuspense(<RegisterPage />),
     errorElement: withSuspense(<RouteErrorPage />),
   },
   {
-    path: '/verify-email',
+    path: "/verify-email",
     element: withSuspense(<VerifyEmailPage />),
     errorElement: withSuspense(<RouteErrorPage />),
   },
@@ -71,26 +79,50 @@ export const router = createBrowserRouter([
         errorElement: withSuspense(<RouteErrorPage />),
         element: withSuspense(<AppShell />),
         children: [
-          { path: '/', element: withSuspense(<DocumentsPage />) },
-          { path: '/documents', element: withSuspense(<DocumentsPage />) },
-          { path: '/documents/:id', element: withSuspense(<DocumentDetailPage />) },
-          { path: '/search', element: <Navigate to="/documents" replace /> },
-          { path: '/profile', element: withSuspense(<ProfilePage />) },
-          { path: '/permissions/request', element: withSuspense(<PermissionRequestPage />) },
-          { path: '/forbidden', element: withSuspense(<ForbiddenPage />) },
-          { path: '/admin/categories', element: withSuspense(<CategoriesPage />) },
-          { path: '/admin/types-areas', element: withSuspense(<TypesAreasPage />) },
-          { path: '/admin/users', element: withSuspense(<UsersPage />) },
-          { path: '/admin/users-areas', element: withSuspense(<UsersAreasPage />) },
-          { path: '/admin/audit-logs', element: withSuspense(<AuditLogsPage />) },
-          { path: '/admin/analytics', element: withSuspense(<AnalyticsPage />) },
-          { path: '/admin/registrations', element: withSuspense(<RegistrationsPage />) },
+          { path: "/", element: withSuspense(<DocumentsPage />) },
+          { path: "/documents", element: withSuspense(<DocumentsPage />) },
           {
-            path: '/admin/permission-requests',
+            path: "/documents/:id",
+            element: withSuspense(<DocumentDetailPage />),
+          },
+          { path: "/search", element: <Navigate to="/documents" replace /> },
+          { path: "/profile", element: withSuspense(<ProfilePage />) },
+          {
+            path: "/permissions/request",
+            element: withSuspense(<PermissionRequestPage />),
+          },
+          { path: "/forbidden", element: withSuspense(<ForbiddenPage />) },
+          {
+            path: "/admin/categories",
+            element: withSuspense(<CategoriesPage />),
+          },
+          {
+            path: "/admin/types-areas",
+            element: withSuspense(<TypesAreasPage />),
+          },
+          { path: "/admin/users", element: withSuspense(<UsersPage />) },
+          {
+            path: "/admin/users-areas",
+            element: withSuspense(<UsersAreasPage />),
+          },
+          {
+            path: "/admin/audit-logs",
+            element: withSuspense(<AuditLogsPage />),
+          },
+          {
+            path: "/admin/analytics",
+            element: withSuspense(<AnalyticsPage />),
+          },
+          {
+            path: "/admin/registrations",
+            element: withSuspense(<RegistrationsPage />),
+          },
+          {
+            path: "/admin/permission-requests",
             element: withSuspense(<PermissionRequestsPage />),
           },
           {
-            path: '/admin/permission-requests/:id',
+            path: "/admin/permission-requests/:id",
             element: withSuspense(<PermissionRequestDetailPage />),
           },
         ],
@@ -98,7 +130,8 @@ export const router = createBrowserRouter([
     ],
   },
   {
-    path: '*',
+    // Fallback route for unknown paths and unexpected routing errors.
+    path: "*",
     element: withSuspense(<RouteErrorPage />),
     errorElement: withSuspense(<RouteErrorPage />),
   },

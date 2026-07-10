@@ -1,55 +1,65 @@
-import { useEffect, useMemo, useState } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
-import { useForm } from 'react-hook-form';
-import { z } from 'zod';
-import { zodResolver } from '@hookform/resolvers/zod';
+import { useEffect, useMemo, useState } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
 import {
   permissionRequestsCreate,
   permissionRequestsMine,
-} from '../api/endpoints/permissionRequests';
-import { Button } from '../components/ui/Button';
-import { Textarea } from '../components/ui/Textarea';
-import { useToast } from '../components/ToastProvider';
-import { PageContainer } from '../components/layout/PageContainer';
-import { PageHeader } from '../components/layout/PageHeader';
-import { SectionCard } from '../components/layout/SectionCard';
-import { ResponsiveTable, type ResponsiveColumn } from '../components/ui/ResponsiveTable';
-import type { PermissionKey, PermissionRequest } from '../types/permissions';
-import { translateStatus } from '../utils/labels';
-import { useAuth } from '../auth/AuthContext';
-import { AccessDenied } from '../components/AccessDenied';
-import { Pill } from '../components/ui/Badge';
-import { NoticeBanner } from '../components/ui/NoticeBanner';
-import { getApiErrorMessage } from '../utils/apiError';
-import { queryClient } from '../app/queryClient';
-import { invalidateMyPermissionRequests } from '../app/queryInvalidation';
-import { queryKeys } from '../app/queryKeys';
-import { ResultsToolbar } from '../components/layout/ResultsToolbar';
+} from "../api/endpoints/permissionRequests";
+import { Button } from "../components/ui/Button";
+import { Textarea } from "../components/ui/Textarea";
+import { useToast } from "../components/ToastProvider";
+import { PageContainer } from "../components/layout/PageContainer";
+import { PageHeader } from "../components/layout/PageHeader";
+import { SectionCard } from "../components/layout/SectionCard";
+import {
+  ResponsiveTable,
+  type ResponsiveColumn,
+} from "../components/ui/ResponsiveTable";
+import type { PermissionKey, PermissionRequest } from "../types/permissions";
+import { translateStatus } from "../utils/labels";
+import { useAuth } from "../auth/AuthContext";
+import { AccessDenied } from "../components/AccessDenied";
+import { Pill } from "../components/ui/Badge";
+import { NoticeBanner } from "../components/ui/NoticeBanner";
+import { getApiErrorMessage } from "../utils/apiError";
+import { queryClient } from "../app/queryClient";
+import { invalidateMyPermissionRequests } from "../app/queryInvalidation";
+import { queryKeys } from "../app/queryKeys";
+import { ResultsToolbar } from "../components/layout/ResultsToolbar";
 import {
   getPermissionRequestDetail,
   getPermissionRequestTypeLabel,
-} from '../utils/permissionRequests';
+} from "../utils/permissionRequests";
 
 const permissionOptions: Array<{ key: PermissionKey; label: string }> = [
-  { key: 'READ', label: 'Ver documentos' },
-  { key: 'UPLOAD', label: 'Subir documentos' },
-  { key: 'UPLOAD_NEW_VERSION', label: 'Subir nueva versión' },
-  { key: 'REVIEW', label: 'Revisar documentos' },
-  { key: 'APPROVE', label: 'Aprobar documentos' },
-  { key: 'DELETE', label: 'Eliminar documentos' },
+  { key: "READ", label: "Ver documentos" },
+  { key: "UPLOAD", label: "Subir documentos" },
+  { key: "UPLOAD_NEW_VERSION", label: "Subir nueva versión" },
+  { key: "REVIEW", label: "Revisar documentos" },
+  { key: "APPROVE", label: "Aprobar documentos" },
+  { key: "DELETE", label: "Eliminar documentos" },
 ];
 
-const permissionFieldByKey: Partial<Record<PermissionKey, keyof NonNullable<NonNullable<ReturnType<typeof useAuth>['user']>['permissions']>>> = {
-  READ: 'canRead',
-  UPLOAD: 'canUpload',
-  UPLOAD_NEW_VERSION: 'canUploadNewVersion',
-  REVIEW: 'canReview',
-  APPROVE: 'canApprove',
-  DELETE: 'canDelete',
+const permissionFieldByKey: Partial<
+  Record<
+    PermissionKey,
+    keyof NonNullable<
+      NonNullable<ReturnType<typeof useAuth>["user"]>["permissions"]
+    >
+  >
+> = {
+  READ: "canRead",
+  UPLOAD: "canUpload",
+  UPLOAD_NEW_VERSION: "canUploadNewVersion",
+  REVIEW: "canReview",
+  APPROVE: "canApprove",
+  DELETE: "canDelete",
 };
 
 const schema = z.object({
-  permissions: z.array(z.string()).min(1, 'Selecciona al menos un permiso'),
+  permissions: z.array(z.string()).min(1, "Selecciona al menos un permiso"),
   comment: z.string().optional(),
 });
 
@@ -76,7 +86,7 @@ export default function PermissionRequestPage() {
     queryKey: queryKeys.permissions.mine({
       page: 1,
       limit: 100,
-      scope: 'pending-only',
+      scope: "pending-only",
     }),
     queryFn: () =>
       permissionRequestsMine({
@@ -90,11 +100,11 @@ export default function PermissionRequestPage() {
     mutationFn: (payload: { permissions: PermissionKey[]; comment?: string }) =>
       permissionRequestsCreate(payload),
     onSuccess: () => {
-      notify('Solicitud enviada', 'success');
+      notify("Solicitud enviada", "success");
       invalidateMyPermissionRequests(queryClient);
     },
     onError: (error: any) => {
-      notify(getApiErrorMessage(error, 'Error al solicitar permisos'), 'error');
+      notify(getApiErrorMessage(error, "Error al solicitar permisos"), "error");
     },
   });
 
@@ -106,21 +116,24 @@ export default function PermissionRequestPage() {
     reset,
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { permissions: [], comment: '' },
+    defaultValues: { permissions: [], comment: "" },
   });
 
-  const selected = watch('permissions') ?? [];
+  const selected = watch("permissions") ?? [];
   const historyItems = listQuery.data?.items ?? [];
   const pendingItems = pendingRequestsQuery.data?.items ?? [];
   const historyTotal = listQuery.data?.total ?? 0;
   const historyTotalPages = Math.max(1, Math.ceil(historyTotal / historyLimit));
 
   const pendingPermissionKeys = useMemo(() => {
+    // Build a set of pending permission keys to block duplicate submissions in UI.
     const result = new Set<string>();
     for (const item of pendingItems) {
-      if (item.status !== 'PENDING' || item.requestType === 'AREAS') continue;
+      if (item.status !== "PENDING" || item.requestType === "AREAS") continue;
       try {
-        const parsed = JSON.parse(item.requestedPermissions ?? '[]') as string[];
+        const parsed = JSON.parse(
+          item.requestedPermissions ?? "[]",
+        ) as string[];
         parsed.forEach((key) => result.add(key));
       } catch {
         continue;
@@ -149,6 +162,7 @@ export default function PermissionRequestPage() {
   }, [historyPage, historyTotalPages]);
 
   const onSubmit = handleSubmit(async (values) => {
+    // Backend enforces rules too; this front validation keeps feedback immediate.
     await createMutation.mutateAsync({
       permissions: values.permissions as PermissionKey[],
       comment: values.comment,
@@ -158,22 +172,25 @@ export default function PermissionRequestPage() {
 
   const columns = useMemo<ResponsiveColumn<PermissionRequest>[]>(
     () => [
-      { header: 'Fecha', cell: (item) => new Date(item.createdAt ?? '').toLocaleDateString() },
       {
-        header: 'Tipo',
+        header: "Fecha",
+        cell: (item) => new Date(item.createdAt ?? "").toLocaleDateString(),
+      },
+      {
+        header: "Tipo",
         cell: (item) =>
-          item.requestType === 'AREAS' ? (
+          item.requestType === "AREAS" ? (
             <Pill tone="IN_REVIEW">Áreas</Pill>
           ) : (
             <Pill tone="default">Permisos</Pill>
           ),
       },
       {
-        header: 'Detalle',
+        header: "Detalle",
         cell: (item) => getPermissionRequestDetail(item),
       },
-      { header: 'Estado', cell: (item) => translateStatus(item.status) },
-      { header: 'Motivo', cell: (item) => item.reviewReason ?? '-' },
+      { header: "Estado", cell: (item) => translateStatus(item.status) },
+      { header: "Motivo", cell: (item) => item.reviewReason ?? "-" },
     ],
     [],
   );
@@ -189,7 +206,10 @@ export default function PermissionRequestPage() {
   return (
     <PageContainer>
       <section className="flex flex-col gap-6">
-        <PageHeader title="Solicitar permisos" subtitle="Pide accesos adicionales a la asesora." />
+        <PageHeader
+          title="Solicitar permisos"
+          subtitle="Pide accesos adicionales a la asesora."
+        />
 
         {pendingPermissionCount > 0 ? (
           <NoticeBanner title="Tienes solicitudes pendientes">
@@ -199,23 +219,35 @@ export default function PermissionRequestPage() {
 
         <SectionCard>
           <form onSubmit={onSubmit} className="flex flex-col gap-4">
-            <h3 className="font-semibold text-brand-text">Solicitar permisos</h3>
+            <h3 className="font-semibold text-brand-text">
+              Solicitar permisos
+            </h3>
             {hasAllRequestablePermissions ? (
-              <NoticeBanner variant="success" title="Sin permisos pendientes por solicitar">
-                Ya cuentas con todos los permisos disponibles en este formulario.
+              <NoticeBanner
+                variant="success"
+                title="Sin permisos pendientes por solicitar"
+              >
+                Ya cuentas con todos los permisos disponibles en este
+                formulario.
               </NoticeBanner>
             ) : (
               <NoticeBanner title="Selecciona solo los permisos que necesites">
-                Los permisos ya activos o que ya están en revisión aparecen marcados y bloqueados para evitar duplicados.
+                Los permisos ya activos o que ya están en revisión aparecen
+                marcados y bloqueados para evitar duplicados.
               </NoticeBanner>
             )}
             <div className="grid gap-3 sm:grid-cols-2">
               {permissionOptions.map((option) => {
                 const field = permissionFieldByKey[option.key];
-                const alreadyGranted = field ? Boolean(user?.permissions?.[field]) : false;
+                const alreadyGranted = field
+                  ? Boolean(user?.permissions?.[field])
+                  : false;
                 const pending = pendingPermissionKeys.has(option.key);
                 return (
-                  <label key={option.key} className="flex items-center gap-2 text-sm text-brand-text">
+                  <label
+                    key={option.key}
+                    className="flex items-center gap-2 text-sm text-brand-text"
+                  >
                     {alreadyGranted || pending ? (
                       <input
                         type="checkbox"
@@ -228,25 +260,39 @@ export default function PermissionRequestPage() {
                       <input
                         type="checkbox"
                         value={option.key}
-                        {...register('permissions')}
+                        {...register("permissions")}
                         checked={selected.includes(option.key)}
                         className="h-4 w-4 rounded border-brand-border text-brand-primary"
                       />
                     )}
-                    <span className={alreadyGranted || pending ? 'text-brand-textMuted' : ''}>
+                    <span
+                      className={
+                        alreadyGranted || pending ? "text-brand-textMuted" : ""
+                      }
+                    >
                       {option.label}
-                      {alreadyGranted ? ' (ya activo)' : pending ? ' (pendiente)' : ''}
+                      {alreadyGranted
+                        ? " (ya activo)"
+                        : pending
+                          ? " (pendiente)"
+                          : ""}
                     </span>
                   </label>
                 );
               })}
             </div>
             {errors.permissions ? (
-              <div className="text-sm text-ember">{errors.permissions.message}</div>
+              <div className="text-sm text-ember">
+                {errors.permissions.message}
+              </div>
             ) : null}
-            <Textarea label="Comentario" rows={3} {...register('comment')} />
-            <Button type="submit" className="w-full sm:w-auto" disabled={isSubmitting || hasAllRequestablePermissions}>
-              {isSubmitting ? 'Enviando...' : 'Enviar solicitud'}
+            <Textarea label="Comentario" rows={3} {...register("comment")} />
+            <Button
+              type="submit"
+              className="w-full sm:w-auto"
+              disabled={isSubmitting || hasAllRequestablePermissions}
+            >
+              {isSubmitting ? "Enviando..." : "Enviar solicitud"}
             </Button>
           </form>
         </SectionCard>
@@ -269,18 +315,25 @@ export default function PermissionRequestPage() {
                       Mostrando {historyItems.length} de {historyTotal}
                     </span>
                     <span>
-                      Página {listQuery.data?.page ?? historyPage} de {historyTotalPages}
+                      Página {listQuery.data?.page ?? historyPage} de{" "}
+                      {historyTotalPages}
                     </span>
                   </>
                 }
                 currentPage={listQuery.data?.page ?? historyPage}
                 totalPages={historyTotalPages}
-                onPrevious={() => setHistoryPage((prev) => Math.max(prev - 1, 1))}
+                onPrevious={() =>
+                  setHistoryPage((prev) => Math.max(prev - 1, 1))
+                }
                 onNext={() =>
-                  setHistoryPage((prev) => Math.min(prev + 1, historyTotalPages))
+                  setHistoryPage((prev) =>
+                    Math.min(prev + 1, historyTotalPages),
+                  )
                 }
                 previousDisabled={(listQuery.data?.page ?? historyPage) <= 1}
-                nextDisabled={(listQuery.data?.page ?? historyPage) >= historyTotalPages}
+                nextDisabled={
+                  (listQuery.data?.page ?? historyPage) >= historyTotalPages
+                }
                 actions={
                   <select
                     aria-label="Solicitudes por página"
@@ -307,10 +360,12 @@ export default function PermissionRequestPage() {
                 rowHeight={76}
                 renderMobileCard={(item) => (
                   <div className="flex flex-col gap-2 text-sm">
-                    <div className="font-semibold text-brand-text">{translateStatus(item.status)}</div>
+                    <div className="font-semibold text-brand-text">
+                      {translateStatus(item.status)}
+                    </div>
                     <div>Tipo: {getPermissionRequestTypeLabel(item)}</div>
                     <div>Detalle: {getPermissionRequestDetail(item)}</div>
-                    <div>Motivo: {item.reviewReason ?? '-'}</div>
+                    <div>Motivo: {item.reviewReason ?? "-"}</div>
                   </div>
                 )}
               />

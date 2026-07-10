@@ -5,9 +5,15 @@ import { User } from './user.entity';
 import { UserRole } from './user-role.enum';
 import { UserStatus } from './user-status.enum';
 import { PermissionKey } from './permissions';
-import { DocumentApproval, ApprovalDecision, ApprovalStep } from '../documents/document-approval.entity';
+import {
+  DocumentApproval,
+  ApprovalDecision,
+  ApprovalStep,
+} from '../documents/document-approval.entity';
 import { assertPermissions } from './user-access.policy';
 
+// User query service: fetch users by email/ID, with optional relation eager-loading; find approvers by permission
+// Supports transaction-aware queries via EntityManager; queries across multiple entities for document approval context
 @Injectable()
 export class UsersQueryService {
   constructor(
@@ -21,6 +27,7 @@ export class UsersQueryService {
     return manager ? manager.getRepository(User) : this.userRepo;
   }
 
+  // Find user by email; used for login/registration lookups
   async findByEmail(email: string, manager?: EntityManager) {
     return this.userRepository(manager).findOne({ where: { email } });
   }
@@ -92,9 +99,13 @@ export class UsersQueryService {
         new Brackets((searchQb) => {
           searchQb
             .where('LOWER(user.email) LIKE :like', { like })
-            .orWhere('LOWER(COALESCE(user.nombre, \'\')) LIKE :like', { like })
-            .orWhere('LOWER(COALESCE(user.primerApellido, \'\')) LIKE :like', { like })
-            .orWhere('LOWER(COALESCE(user.segundoApellido, \'\')) LIKE :like', { like });
+            .orWhere("LOWER(COALESCE(user.nombre, '')) LIKE :like", { like })
+            .orWhere("LOWER(COALESCE(user.primerApellido, '')) LIKE :like", {
+              like,
+            })
+            .orWhere("LOWER(COALESCE(user.segundoApellido, '')) LIKE :like", {
+              like,
+            });
         }),
       ).orderBy('user.email', 'ASC');
     } else {

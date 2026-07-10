@@ -18,6 +18,7 @@ async function main() {
   const manifest = await readManifest(manifestPath);
   let verified = 0;
   for (const file of manifest.files ?? []) {
+    // Verify presence + checksum for every file declared in backup manifest.
     const targetPath = path.join(dataDir, file.path);
     await access(targetPath);
     const checksum = await computeSha256(targetPath);

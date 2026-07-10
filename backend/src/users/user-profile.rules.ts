@@ -1,12 +1,19 @@
 import { BadRequestException } from '@nestjs/common';
+
 import { USER_REQUESTED_AREA_MAX_LENGTH } from '../common/field-limits';
 
-export const NAME_REGEX = /^[A-Za-zÁÉÍÓÚáéíóúÜüÑñ]+(?: [A-Za-zÁÉÍÓÚáéíóúÜüÑñ]+)*$/;
+// User profile validation rules: person name normalization (Spanish lowercase connectors), age/phone validation
+// Business logic for name capitalization, text normalization, and optional/required field handling
+
+// Allow accented Spanish characters, space-separated words only
+export const NAME_REGEX =
+  /^[A-Za-zÁÉÍÓÚáéíóúÜüÑñ]+(?: [A-Za-zÁÉÍÓÚáéíóúÜüÑñ]+)*$/;
 export const NAME_MESSAGE = 'Solo se permiten letras y espacios';
 export const PHONE_ONLY_REGEX = /^\d+$/;
 export const PHONE_ONLY_MESSAGE = 'Solo se permiten hasta 15 números';
 export const ADULT_AGE_MESSAGE = 'Debes tener al menos 18 años';
 export const MAX_AGE_MESSAGE = 'No se permiten mayores de 85 años';
+// Spanish language connectors that should remain lowercase in proper names
 const LOWERCASE_CONNECTORS = new Set([
   'de',
   'del',
@@ -24,7 +31,8 @@ const LOWERCASE_CONNECTORS = new Set([
   'von',
 ]);
 
-export const buildMaxLengthMessage = (max: number) => `Máximo ${max} caracteres`;
+export const buildMaxLengthMessage = (max: number) =>
+  `Máximo ${max} caracteres`;
 
 export const normalizeTextValue = (value: unknown) => {
   if (typeof value !== 'string') {
@@ -125,12 +133,8 @@ export function assertBirthDateRange(value?: string | null) {
   }
 
   const today = new Date();
-  const maxBirthDate = parseDateOnly(
-    toDateInputValue(shiftYears(today, 18)),
-  );
-  const minBirthDate = parseDateOnly(
-    toDateInputValue(shiftYears(today, 85)),
-  );
+  const maxBirthDate = parseDateOnly(toDateInputValue(shiftYears(today, 18)));
+  const minBirthDate = parseDateOnly(toDateInputValue(shiftYears(today, 85)));
 
   if (!maxBirthDate || !minBirthDate) {
     throw new BadRequestException('Fecha de nacimiento inválida');

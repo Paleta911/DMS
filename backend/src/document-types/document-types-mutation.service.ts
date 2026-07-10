@@ -8,6 +8,7 @@ import { Repository } from 'typeorm';
 import { DocumentType } from './document-type.entity';
 import { Document } from '../documents/document.entity';
 
+// Mutation service for document type catalog with safe reactivation and reference cleanup.
 @Injectable()
 export class DocumentTypesMutationService {
   constructor(
@@ -18,6 +19,7 @@ export class DocumentTypesMutationService {
   ) {}
 
   async create(payload: Partial<DocumentType>) {
+    // Normalize code to enforce case-insensitive uniqueness at application level.
     const code = payload.code?.toUpperCase().trim();
     const nombreLargo = payload.nombreLargo?.trim();
     const existing = code
@@ -29,6 +31,7 @@ export class DocumentTypesMutationService {
     }
 
     if (existing && !existing.activo) {
+      // Reuse inactive record to keep stable IDs and audit continuity.
       existing.nombreLargo = nombreLargo ?? existing.nombreLargo;
       existing.activo = true;
       return this.documentTypeRepo.save(existing);
@@ -49,7 +52,9 @@ export class DocumentTypesMutationService {
     }
     if (typeof payload.code === 'string') {
       const nextCode = payload.code.toUpperCase().trim();
-      const existing = await this.documentTypeRepo.findOne({ where: { code: nextCode } });
+      const existing = await this.documentTypeRepo.findOne({
+        where: { code: nextCode },
+      });
       if (existing && existing.id !== entity.id) {
         throw new ConflictException('Ya existe un tipo con ese código');
       }
@@ -58,7 +63,10 @@ export class DocumentTypesMutationService {
     if (typeof payload.nombreLargo === 'string') {
       entity.nombreLargo = payload.nombreLargo.trim();
     }
-    if (typeof payload.activo === 'boolean' && payload.activo !== entity.activo) {
+    if (
+      typeof payload.activo === 'boolean' &&
+      payload.activo !== entity.activo
+    ) {
       if (!payload.activo) {
         await this.documentRepo
           .createQueryBuilder()
@@ -81,6 +89,7 @@ export class DocumentTypesMutationService {
       return { success: true, alreadyInactive: true };
     }
 
+    // Soft deletion detaches existing documents from the catalog entry.
     await this.documentRepo
       .createQueryBuilder()
       .update(Document)
@@ -99,6 +108,7 @@ export class DocumentTypesMutationService {
       throw new NotFoundException('Tipo no encontrado');
     }
 
+    // Hard deletion first nulls references to prevent FK conflicts.
     await this.documentRepo
       .createQueryBuilder()
       .update(Document)

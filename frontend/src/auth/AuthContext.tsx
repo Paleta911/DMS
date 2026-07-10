@@ -5,11 +5,11 @@ import {
   useEffect,
   useMemo,
   useState,
-} from 'react';
-import type { ReactNode } from 'react';
-import type { AuthUser } from '../types/auth';
-import { authLogin } from '../api/endpoints/auth';
-import { usersMe } from '../api/endpoints/users';
+} from "react";
+import type { ReactNode } from "react";
+import type { AuthUser } from "../types/auth";
+import { authLogin } from "../api/endpoints/auth";
+import { usersMe } from "../api/endpoints/users";
 import {
   clearLoginBlockedState,
   clearPendingVerificationEmail,
@@ -20,7 +20,7 @@ import {
   setRefreshToken,
   setStoredUser,
   setToken,
-} from './storage';
+} from "./storage";
 
 export type AuthContextValue = {
   user: AuthUser | null;
@@ -35,6 +35,7 @@ export type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 async function resolveUserFromToken() {
+  // Used after refresh/login to reconcile UI state with server-side user state.
   try {
     return await usersMe();
   } catch {
@@ -51,7 +52,10 @@ async function hydrateUser(user: AuthUser) {
   }
 }
 
+// Auth context provider manages login/logout flow, token persistence, user hydration, and admin role detection
+// Stores auth state in localStorage and automatically reconciles with server on app load
 export function AuthProvider({ children }: { children: ReactNode }) {
+  // Initialize auth state from localStorage to restore user session across page refreshes
   const [user, setUser] = useState<AuthUser | null>(() => getStoredUser());
   const [token, setTokenState] = useState<string | null>(() => getToken());
   const [refreshToken, setRefreshTokenState] = useState<string | null>(() =>
@@ -67,13 +71,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [token]);
 
+  // If token exists but user is not yet loaded, fetch user details from server
   useEffect(() => {
     if (token && !user) {
       void refreshUser();
     }
   }, [token, user, refreshUser]);
 
+  // Login flow persists tokens first, then hydrates user; clears login block/verification state
   const login = useCallback(async (email: string, password: string) => {
+    // Persist both tokens before hydrating user to keep subsequent API calls authenticated.
     const response = await authLogin({ email, password });
     clearLoginBlockedState();
     clearPendingVerificationEmail();
@@ -95,11 +102,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = useCallback(() => {
+    // Full client-side logout; backend tokens expire naturally.
     clearAuthStorage();
     setUser(null);
     setTokenState(null);
     setRefreshTokenState(null);
-    window.location.href = '/login';
+    window.location.href = "/login";
   }, []);
 
   const value = useMemo<AuthContextValue>(
@@ -107,7 +115,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user,
       token,
       refreshToken,
-      isAdmin: user?.role === 'admin',
+      isAdmin: user?.role === "admin",
       login,
       logout,
       refreshUser,
@@ -121,7 +129,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 export function useAuth() {
   const ctx = useContext(AuthContext);
   if (!ctx) {
-    throw new Error('useAuth must be used within AuthProvider');
+    throw new Error("useAuth must be used within AuthProvider");
   }
   return ctx;
 }

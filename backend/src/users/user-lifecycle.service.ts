@@ -23,6 +23,9 @@ import { UserDeletionRegistryService } from './user-deletion-registry.service';
 import { Document } from '../documents/document.entity';
 import { Version } from '../versions/version.entity';
 
+// User lifecycle service: manages user status transitions (approve, reject, soft-delete) and permission resets
+// Handles cascading effects (orphaned approval assignments, permission requests) with transaction support
+
 type UserLifecycleParams = {
   id: number;
   adminId: number;
@@ -30,6 +33,7 @@ type UserLifecycleParams = {
   userAgent?: string;
 };
 
+// Zero-permission state for blocked/deleted users
 const ZERO_PERMISSIONS: PermissionFlags = {
   canAccess: false,
   canRead: false,
@@ -300,7 +304,12 @@ export class UserLifecycleService {
           AND [decision] = @1
           AND [step] IN (@2, @3)
       `,
-      [userId, ApprovalDecision.Pending, ApprovalStep.Reviso, ApprovalStep.Aprobo],
+      [
+        userId,
+        ApprovalDecision.Pending,
+        ApprovalStep.Reviso,
+        ApprovalStep.Aprobo,
+      ],
     );
 
     return counts;

@@ -1,6 +1,13 @@
 import { createHash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
-import { mkdir, readdir, readFile, stat, writeFile, copyFile } from 'node:fs/promises';
+import {
+  mkdir,
+  readdir,
+  readFile,
+  stat,
+  writeFile,
+  copyFile,
+} from 'node:fs/promises';
 import path from 'node:path';
 
 export async function ensureDir(dirPath) {
@@ -16,12 +23,14 @@ export function resolveStorageEnv() {
 }
 
 export async function listFilesRecursively(rootDir) {
+  // Orden estable: facilita diff de manifests y auditoria de respaldos entre corridas.
   const files = [];
   await walk(rootDir, rootDir, files);
   return files.sort((a, b) => a.localeCompare(b));
 }
 
 export async function computeSha256(filePath) {
+  // Hash por stream para verificar integridad sin consumo alto de memoria.
   const hash = createHash('sha256');
   await new Promise((resolve, reject) => {
     const stream = createReadStream(filePath);
@@ -38,16 +47,15 @@ export async function readManifest(manifestPath) {
 }
 
 export async function writeManifest(manifestPath, manifest) {
-  await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
+  await writeFile(
+    manifestPath,
+    `${JSON.stringify(manifest, null, 2)}\n`,
+    'utf8',
+  );
 }
 
 export async function copyStorageTree(params) {
-  const {
-    sourceDir,
-    targetDir,
-    files,
-    onFile,
-  } = params;
+  const { sourceDir, targetDir, files, onFile } = params;
 
   for (const relativePath of files) {
     const sourcePath = path.join(sourceDir, relativePath);
@@ -86,6 +94,7 @@ async function walk(rootDir, currentDir, files) {
 }
 
 export async function buildManifest(uploadDir, files) {
+  // El manifest combina identidad (path), tamaño, mtime y hash para restore verificable.
   const items = [];
   for (const relativePath of files) {
     const absolutePath = path.join(uploadDir, relativePath);

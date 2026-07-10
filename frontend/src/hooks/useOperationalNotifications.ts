@@ -1,30 +1,35 @@
-import { useEffect, useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { adminRegistrationsList } from '../api/endpoints/adminRegistrations';
+import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { adminRegistrationsList } from "../api/endpoints/adminRegistrations";
 import {
   adminPermissionRequestsList,
   permissionRequestsMine,
-} from '../api/endpoints/permissionRequests';
-import { usersMe } from '../api/endpoints/users';
-import type { AuthUser } from '../types/auth';
-import { queryKeys } from '../app/queryKeys';
+} from "../api/endpoints/permissionRequests";
+import { usersMe } from "../api/endpoints/users";
+import type { AuthUser } from "../types/auth";
+import { queryKeys } from "../app/queryKeys";
 
+// Hook that aggregates actionable notifications from multiple operational sources.
+// Combines user tasks, registration backlog, and permission-request queues.
 export type OperationalNotification = {
   id: string;
   signature: string;
   title: string;
   description: string;
   href: string;
-  tone: 'info' | 'success' | 'warning';
+  tone: "info" | "success" | "warning";
   createdAt: string;
 };
 
 function storageKey(email?: string | null) {
-  return email ? `operational-notifications:${email}` : 'operational-notifications';
+  // Per-user key prevents notification read-state leakage across accounts.
+  return email
+    ? `operational-notifications:${email}`
+    : "operational-notifications";
 }
 
 function loadSeen(email?: string | null) {
-  if (typeof window === 'undefined') {
+  if (typeof window === "undefined") {
     return new Set<string>();
   }
   try {
@@ -38,11 +43,17 @@ function loadSeen(email?: string | null) {
   }
 }
 
-function persistSeen(email: string | null | undefined, signatures: Set<string>) {
-  if (typeof window === 'undefined') {
+function persistSeen(
+  email: string | null | undefined,
+  signatures: Set<string>,
+) {
+  if (typeof window === "undefined") {
     return;
   }
-  window.localStorage.setItem(storageKey(email), JSON.stringify([...signatures]));
+  window.localStorage.setItem(
+    storageKey(email),
+    JSON.stringify([...signatures]),
+  );
 }
 
 function createNotification(
@@ -50,7 +61,7 @@ function createNotification(
   title: string,
   description: string,
   href: string,
-  tone: OperationalNotification['tone'],
+  tone: OperationalNotification["tone"],
   createdAt: string,
 ): OperationalNotification {
   return {
@@ -65,18 +76,24 @@ function createNotification(
 }
 
 function formatRequestType(type?: string) {
-  return type === 'AREAS' ? 'áreas' : 'permisos';
+  return type === "AREAS" ? "áreas" : "permisos";
 }
 
-export function useOperationalNotifications(user: AuthUser | null, isAdmin: boolean) {
-  const [seen, setSeen] = useState<Set<string>>(() => loadSeen(user?.email ?? null));
+export function useOperationalNotifications(
+  user: AuthUser | null,
+  isAdmin: boolean,
+) {
+  const [seen, setSeen] = useState<Set<string>>(() =>
+    loadSeen(user?.email ?? null),
+  );
 
   useEffect(() => {
     setSeen(loadSeen(user?.email ?? null));
   }, [user?.email]);
 
   const refetchInterval = () =>
-    typeof document !== 'undefined' && document.visibilityState === 'visible'
+    // Poll only while tab is visible to reduce unnecessary background traffic.
+    typeof document !== "undefined" && document.visibilityState === "visible"
       ? 60000
       : false;
 
@@ -90,7 +107,11 @@ export function useOperationalNotifications(user: AuthUser | null, isAdmin: bool
   });
 
   const myRequestsQuery = useQuery({
-    queryKey: queryKeys.permissions.mine({ page: 1, limit: 5, scope: 'notifications' }),
+    queryKey: queryKeys.permissions.mine({
+      page: 1,
+      limit: 5,
+      scope: "notifications",
+    }),
     queryFn: () => permissionRequestsMine({ page: 1, limit: 5 }),
     enabled: Boolean(user) && !user?.isSuperAdmin,
     staleTime: 30000,
@@ -100,14 +121,14 @@ export function useOperationalNotifications(user: AuthUser | null, isAdmin: bool
 
   const registrationsQuery = useQuery({
     queryKey: queryKeys.registrations.list({
-      status: 'PENDING_APPROVAL',
+      status: "PENDING_APPROVAL",
       page: 1,
       limit: 5,
-      scope: 'notifications',
+      scope: "notifications",
     }),
     queryFn: () =>
       adminRegistrationsList({
-        status: 'PENDING_APPROVAL',
+        status: "PENDING_APPROVAL",
         page: 1,
         limit: 5,
       }),
@@ -121,7 +142,7 @@ export function useOperationalNotifications(user: AuthUser | null, isAdmin: bool
     queryKey: queryKeys.registrations.list({
       page: 1,
       limit: 25,
-      scope: 'notifications-custom-area',
+      scope: "notifications-custom-area",
     }),
     queryFn: () =>
       adminRegistrationsList({
@@ -136,14 +157,14 @@ export function useOperationalNotifications(user: AuthUser | null, isAdmin: bool
 
   const adminRequestsQuery = useQuery({
     queryKey: queryKeys.permissions.adminList({
-      status: 'PENDING',
+      status: "PENDING",
       page: 1,
       limit: 5,
-      scope: 'notifications',
+      scope: "notifications",
     }),
     queryFn: () =>
       adminPermissionRequestsList({
-        status: 'PENDING',
+        status: "PENDING",
         page: 1,
         limit: 5,
       }),
@@ -154,6 +175,7 @@ export function useOperationalNotifications(user: AuthUser | null, isAdmin: bool
   });
 
   const notifications = useMemo(() => {
+    // Build deterministic signatures so read/unread state survives reloads.
     const results: OperationalNotification[] = [];
     const now = new Date().toISOString();
     const me = meQuery.data;
@@ -163,10 +185,10 @@ export function useOperationalNotifications(user: AuthUser | null, isAdmin: bool
       results.push(
         createNotification(
           `tasks:review:${count}`,
-          'Tienes documentos por revisar',
+          "Tienes documentos por revisar",
           `${count} documento(s) requieren tu revisión.`,
-          '/documents',
-          'warning',
+          "/documents",
+          "warning",
           now,
         ),
       );
@@ -177,29 +199,30 @@ export function useOperationalNotifications(user: AuthUser | null, isAdmin: bool
       results.push(
         createNotification(
           `tasks:approve:${count}`,
-          'Tienes documentos por aprobar',
+          "Tienes documentos por aprobar",
           `${count} documento(s) esperan tu aprobación final.`,
-          '/documents',
-          'warning',
+          "/documents",
+          "warning",
           now,
         ),
       );
     }
 
+    // Convert processed personal requests into success/warning notifications.
     for (const item of myRequestsQuery.data?.items ?? []) {
-      if (item.status === 'PENDING') {
+      if (item.status === "PENDING") {
         continue;
       }
       const stamp = item.reviewedAt ?? item.updatedAt ?? item.createdAt ?? now;
       results.push(
         createNotification(
           `my-request:${item.id}:${item.status}:${stamp}`,
-          item.status === 'APPROVED'
-            ? 'Tu solicitud fue aprobada'
-            : 'Tu solicitud fue rechazada',
+          item.status === "APPROVED"
+            ? "Tu solicitud fue aprobada"
+            : "Tu solicitud fue rechazada",
           `La solicitud de ${formatRequestType(item.requestType)} #${item.id} ya fue atendida.`,
-          '/permissions/request',
-          item.status === 'APPROVED' ? 'success' : 'warning',
+          "/permissions/request",
+          item.status === "APPROVED" ? "success" : "warning",
           stamp,
         ),
       );
@@ -210,26 +233,27 @@ export function useOperationalNotifications(user: AuthUser | null, isAdmin: bool
       results.push(
         createNotification(
           `admin-registrations:${total}`,
-          'Hay registros pendientes de aprobación',
+          "Hay registros pendientes de aprobación",
           `${total} registro(s) esperan validación de super admin.`,
-          '/admin/users',
-          'info',
+          "/admin/users",
+          "info",
           now,
         ),
       );
     }
 
+    // Highlight registrations that requested a custom (non-catalog) area.
     for (const item of customAreaRegistrationsQuery.data?.items ?? []) {
-      if (!item.requestedAreaNombre || item.status === 'REJECTED') {
+      if (!item.requestedAreaNombre || item.status === "REJECTED") {
         continue;
       }
       results.push(
         createNotification(
           `admin-registration-custom-area:${item.id}:${item.requestedAreaNombre}`,
-          'Usuario solicitó un área no listada',
+          "Usuario solicitó un área no listada",
           `${item.email} indicó el área "${item.requestedAreaNombre}".`,
-          '/admin/users',
-          'info',
+          "/admin/users",
+          "info",
           item.registeredAt ?? now,
         ),
       );
@@ -240,16 +264,18 @@ export function useOperationalNotifications(user: AuthUser | null, isAdmin: bool
       results.push(
         createNotification(
           `admin-permission-requests:${total}`,
-          'Hay solicitudes pendientes',
+          "Hay solicitudes pendientes",
           `${total} solicitud(es) de permisos o áreas siguen pendientes.`,
-          '/admin/permission-requests',
-          'info',
+          "/admin/permission-requests",
+          "info",
           now,
         ),
       );
     }
 
-    return results.sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+    return results.sort((left, right) =>
+      right.createdAt.localeCompare(left.createdAt),
+    );
   }, [
     adminRequestsQuery.data?.total,
     customAreaRegistrationsQuery.data?.items,
@@ -272,7 +298,10 @@ export function useOperationalNotifications(user: AuthUser | null, isAdmin: bool
   };
 
   const markAllAsRead = () => {
-    const next = new Set([...seen, ...notifications.map((item) => item.signature)]);
+    const next = new Set([
+      ...seen,
+      ...notifications.map((item) => item.signature),
+    ]);
     persistSeen(user?.email ?? null, next);
     setSeen(next);
   };

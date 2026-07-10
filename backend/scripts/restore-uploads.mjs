@@ -1,6 +1,12 @@
 import { access } from 'node:fs/promises';
 import path from 'node:path';
-import { computeSha256, copyStorageTree, ensureDir, readManifest, resolveStorageEnv } from './storage-lib.mjs';
+import {
+  computeSha256,
+  copyStorageTree,
+  ensureDir,
+  readManifest,
+  resolveStorageEnv,
+} from './storage-lib.mjs';
 
 async function main() {
   const backupRootArg = process.argv[2];
@@ -29,6 +35,7 @@ async function main() {
   });
 
   for (const file of manifest.files ?? []) {
+    // Post-restore checksum validation ensures restored files match backup manifest.
     const targetPath = path.join(uploadDir, file.path);
     const checksum = await computeSha256(targetPath);
     if (checksum !== file.sha256) {

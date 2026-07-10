@@ -1,6 +1,7 @@
-import type { ReactNode } from 'react';
-import { motion, useReducedMotion } from 'framer-motion';
+import type { ReactNode } from "react";
+import { motion, useReducedMotion } from "framer-motion";
 
+// Shared animation primitives and wrappers to keep motion behavior consistent across the UI.
 export const EASE = [0.22, 1, 0.36, 1] as const;
 export const TRANSITION = { duration: 0.35, ease: EASE } as const;
 export const FAST_TRANSITION = { duration: 0.25, ease: EASE } as const;
@@ -56,10 +57,15 @@ export function PageTransition({
   children: ReactNode;
   className?: string;
 }) {
+  // Respect reduced-motion preference with static fade-only rendering.
   const reduceMotion = useReducedMotion();
   if (reduceMotion) {
     return (
-      <motion.div className={className} initial={false} animate={{ opacity: 1 }}>
+      <motion.div
+        className={className}
+        initial={false}
+        animate={{ opacity: 1 }}
+      >
         {children}
       </motion.div>
     );
@@ -87,10 +93,15 @@ export function FadeInSection({
   className?: string;
   delay?: number;
 }) {
+  // Lightweight section reveal for cards/sections while honoring reduced-motion users.
   const reduceMotion = useReducedMotion();
   if (reduceMotion) {
     return (
-      <motion.div className={className} initial={false} animate={{ opacity: 1 }}>
+      <motion.div
+        className={className}
+        initial={false}
+        animate={{ opacity: 1 }}
+      >
         {children}
       </motion.div>
     );

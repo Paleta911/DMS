@@ -1,3 +1,5 @@
+// Permission system: defines fine-grained access control flags for documents and areas
+// Maps permission keys to database column names; includes default sets for different user types
 export enum PermissionKey {
   Access = 'ACCESS',
   Read = 'READ',
@@ -8,6 +10,7 @@ export enum PermissionKey {
   Delete = 'DELETE',
 }
 
+// Maps permission enum to database boolean column names
 export const PERMISSION_FIELDS: Record<PermissionKey, keyof PermissionFlags> = {
   [PermissionKey.Access]: 'canAccess',
   [PermissionKey.Read]: 'canRead',
@@ -18,6 +21,7 @@ export const PERMISSION_FIELDS: Record<PermissionKey, keyof PermissionFlags> = {
   [PermissionKey.Delete]: 'canDelete',
 };
 
+// Authorization flags: typically scoped to a user's area assignment
 export type PermissionFlags = {
   canAccess: boolean;
   canRead: boolean;
@@ -28,6 +32,7 @@ export type PermissionFlags = {
   canDelete: boolean;
 };
 
+// Approved but non-admin user: read-only access within assigned area
 export const DEFAULT_APPROVED_PERMISSIONS: PermissionFlags = {
   canAccess: true,
   canRead: true,
@@ -38,6 +43,7 @@ export const DEFAULT_APPROVED_PERMISSIONS: PermissionFlags = {
   canDelete: false,
 };
 
+// Admin user: full permissions across all documents
 export const FULL_PERMISSIONS: PermissionFlags = {
   canAccess: true,
   canRead: true,

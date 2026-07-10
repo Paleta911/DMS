@@ -5,6 +5,7 @@ import { config as dotenvConfig } from 'dotenv';
 
 dotenvConfig({ path: path.resolve(process.cwd(), '.env') });
 
+// DB helper layer for browser e2e tests: provisions users/data and polls DB-side state transitions.
 type PermissionFlags = {
   canAccess?: boolean;
   canRead?: boolean;
@@ -36,7 +37,8 @@ function getDbConfig(): sql.config {
     password: process.env.DB_PASS ?? process.env.MSSQL_SA_PASSWORD ?? '',
     database: process.env.DB_NAME ?? 'DMS',
     options: {
-      encrypt: String(process.env.DB_ENCRYPT ?? 'false').toLowerCase() === 'true',
+      encrypt:
+        String(process.env.DB_ENCRYPT ?? 'false').toLowerCase() === 'true',
       trustServerCertificate:
         String(process.env.DB_TRUST_CERT ?? 'true').toLowerCase() !== 'false',
     },
@@ -49,6 +51,7 @@ function getDbConfig(): sql.config {
 }
 
 async function getPool() {
+  // Reuse single shared pool across test suite for speed and connection stability.
   if (!poolPromise) {
     const pool = new sql.ConnectionPool(getDbConfig());
     poolPromise = pool.connect();
@@ -76,8 +79,7 @@ async function setAllowedAreasByUserId(userId: number, areaCodes: string[]) {
     await pool
       .request()
       .input('userId', sql.Int, userId)
-      .input('code', sql.VarChar(20), areaCode.toUpperCase())
-      .query(`
+      .input('code', sql.VarChar(20), areaCode.toUpperCase()).query(`
         INSERT INTO [user_area_codes] ([userId], [areaCodeId])
         SELECT @userId, [id]
         FROM [area_code]
@@ -87,6 +89,7 @@ async function setAllowedAreasByUserId(userId: number, areaCodes: string[]) {
 }
 
 function normalizePermissions(permissions?: PermissionFlags) {
+  // Default to least privilege except read/access unless explicitly overridden.
   return {
     canAccess: permissions?.canAccess ?? true,
     canRead: permissions?.canRead ?? true,
@@ -102,11 +105,11 @@ export async function ensureSuperAdminUser(email: string, password: string) {
   const pool = await getPool();
   const passwordHash = await bcrypt.hash(password, 10);
 
+  // UPSERT idempotente: garantiza admin total para escenarios E2E sin depender de seed externo.
   await pool
     .request()
     .input('email', sql.VarChar(255), email)
-    .input('passwordHash', sql.VarChar(255), passwordHash)
-    .query(`
+    .input('passwordHash', sql.VarChar(255), passwordHash).query(`
       IF EXISTS (SELECT 1 FROM [user] WHERE [email] = @email)
       BEGIN
         UPDATE [user]
@@ -154,6 +157,7 @@ export async function ensureApprovedUser(input: ApprovedUserInput) {
   const passwordHash = await bcrypt.hash(input.password, 10);
   const permissions = normalizePermissions(input.permissions);
 
+  // UPSERT de usuario funcional con permisos parametrizables para pruebas por rol.
   await pool
     .request()
     .input('email', sql.VarChar(255), input.email)
@@ -168,8 +172,7 @@ export async function ensureApprovedUser(input: ApprovedUserInput) {
     .input('canUploadNewVersion', sql.Bit, permissions.canUploadNewVersion)
     .input('canReview', sql.Bit, permissions.canReview)
     .input('canApprove', sql.Bit, permissions.canApprove)
-    .input('canDelete', sql.Bit, permissions.canDelete)
-    .query(`
+    .input('canDelete', sql.Bit, permissions.canDelete).query(`
       IF EXISTS (SELECT 1 FROM [user] WHERE [email] = @email)
       BEGIN
         UPDATE [user]
@@ -229,11 +232,11 @@ export async function setVerificationCode(email: string, code: string) {
   const pool = await getPool();
   const codeHash = await bcrypt.hash(code, 10);
 
+  // Inserta/actualiza OTP simulado con expiracion corta para validar flujo de verificacion.
   await pool
     .request()
     .input('userId', sql.Int, userId)
-    .input('codeHash', sql.VarChar(255), codeHash)
-    .query(`
+    .input('codeHash', sql.VarChar(255), codeHash).query(`
       IF EXISTS (SELECT 1 FROM [email_verification] WHERE [userId] = @userId)
       BEGIN
         UPDATE [email_verification]
@@ -268,12 +271,15 @@ export async function getDocumentIdByName(name: string) {
   const result = await pool
     .request()
     .input('nombre', sql.VarChar(255), name)
-    .query('SELECT TOP 1 [id] FROM [document] WHERE [nombre] = @nombre ORDER BY [id] DESC');
+    .query(
+      'SELECT TOP 1 [id] FROM [document] WHERE [nombre] = @nombre ORDER BY [id] DESC',
+    );
   return (result.recordset[0] as { id: number } | undefined)?.id ?? null;
 }
 
 export async function waitForDocumentIdByName(name: string, timeoutMs = 15000) {
   const deadline = Date.now() + timeoutMs;
+  // Poll because document creation is async relative to browser flow.
   while (Date.now() < deadline) {
     const documentId = await getDocumentIdByName(name);
     if (documentId) {
@@ -329,8 +335,11 @@ export async function waitForAuditAction(params: {
   const pool = await getPool();
   const deadline = Date.now() + (params.timeoutMs ?? 15000);
 
+  // Poll audit table to assert side effects triggered by API actions.
   while (Date.now() < deadline) {
-    const request = pool.request().input('action', sql.VarChar(100), params.action);
+    const request = pool
+      .request()
+      .input('action', sql.VarChar(100), params.action);
     let query = 'SELECT TOP 1 [id] FROM [audit_log] WHERE [action] = @action';
 
     if (params.resourceType) {
@@ -346,7 +355,11 @@ export async function waitForAuditAction(params: {
       query += ' AND [userId] = @userId';
     }
     if (params.metaContains) {
-      request.input('metaContains', sql.VarChar(sql.MAX), `%${params.metaContains}%`);
+      request.input(
+        'metaContains',
+        sql.VarChar(sql.MAX),
+        `%${params.metaContains}%`,
+      );
       query += ' AND [meta] LIKE @metaContains';
     }
 
@@ -365,10 +378,7 @@ export async function waitForAuditAction(params: {
 
 export async function deleteDocumentsByNamePrefix(prefix: string) {
   const pool = await getPool();
-  await pool
-    .request()
-    .input('prefix', sql.VarChar(255), `${prefix}%`)
-    .query(`
+  await pool.request().input('prefix', sql.VarChar(255), `${prefix}%`).query(`
       DELETE FROM [search_index_job]
       WHERE [documentId] IN (SELECT [id] FROM [document] WHERE [nombre] LIKE @prefix);
 
@@ -391,10 +401,7 @@ export async function deleteUsersByEmails(emails: string[]) {
 
   const pool = await getPool();
   for (const email of uniqueEmails) {
-    await pool
-      .request()
-      .input('email', sql.VarChar(255), email)
-      .query(`
+    await pool.request().input('email', sql.VarChar(255), email).query(`
         DELETE FROM [permission_request]
         WHERE [userId] IN (SELECT [id] FROM [user] WHERE [email] = @email);
 

@@ -25,6 +25,7 @@ export class AuditLogService {
     },
     manager?: EntityManager,
   ) {
+    // Write path is isolated to keep audit persistence rules centralized.
     return this.auditLogWriteService.log(params, manager);
   }
 

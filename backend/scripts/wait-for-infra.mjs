@@ -17,6 +17,7 @@ const timeoutMs = (() => {
 })();
 
 const hasModeFlag = args.has('--db') || args.has('--search');
+// Default behavior waits for DB; search is opt-in unless explicitly requested.
 const waitDb = args.has('--db') || !hasModeFlag;
 const waitSearch = args.has('--search');
 

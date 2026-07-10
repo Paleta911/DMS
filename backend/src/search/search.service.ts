@@ -13,14 +13,17 @@ export class SearchService {
   ) {}
 
   enqueueIndexDocument(documentId: number) {
+    // Cola asincrona: ideal para eventos de escritura sin bloquear la request.
     this.searchIndexingService.enqueueIndexDocument(documentId);
   }
 
   indexDocument(documentId: number) {
+    // Indexacion directa para flujos que requieren sincronizacion inmediata.
     return this.searchIndexingService.indexDocument(documentId);
   }
 
   reindexAll() {
+    // Reproceso completo del indice ante migraciones o recuperacion.
     return this.searchIndexingService.reindexAll();
   }
 
@@ -37,6 +40,7 @@ export class SearchService {
     page?: number;
     limit?: number;
   }) {
+    // Query service decides elastic vs fallback behavior transparently.
     return this.searchQueryService.search(params);
   }
 
@@ -49,6 +53,7 @@ export class SearchService {
   }
 
   checkElasticHealthCached(timeoutMs = 200, ttlMs = 10000) {
+    // Cached probe reduces repeated health calls from high-traffic endpoints.
     return this.searchEngineService.checkElasticHealthCached(timeoutMs, ttlMs);
   }
 }

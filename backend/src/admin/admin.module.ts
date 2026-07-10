@@ -17,6 +17,7 @@ import { AdminAnalyticsController } from './admin-analytics.controller';
 import { AdminAnalyticsService } from './admin-analytics.service';
 import { ObservabilityModule } from '../observability/observability.module';
 
+// Admin module groups super-admin workflows: registrations lifecycle and operational analytics.
 @Module({
   imports: [
     TypeOrmModule.forFeature([

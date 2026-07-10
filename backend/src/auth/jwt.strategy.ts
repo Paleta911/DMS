@@ -6,6 +6,8 @@ import { getRequiredEnv } from '../common/security-config.utils';
 import { UsersService } from '../users/users.service';
 import { getSystemAccessBlockReason } from '../users/user-access.policy';
 
+// JWT Passport strategy extracts Bearer token, validates signature, and checks user access status
+// Blocks permanently deleted accounts and system-access-blocked users on each request
 export interface JwtPayload {
   sub: number;
   email: string;
@@ -22,17 +24,24 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
   }
 
+  // Validate JWT payload: check user still exists, not permanently deleted, and not access-blocked
   async validate(payload: JwtPayload) {
     const user = await this.usersService.findById(payload.sub);
     if (!user) {
+      // Check if user was permanently deleted (prevents re-login with old tokens)
       const deletedRecord =
         await this.usersService.findPermanentlyDeletedByEmail(payload.email);
       if (deletedRecord) {
-        throw new UnauthorizedException('Cuenta eliminada por el administrador');
+        throw new UnauthorizedException(
+          'Cuenta eliminada por el administrador',
+        );
       }
-      throw new UnauthorizedException('Sesion expirada. Inicia sesión nuevamente');
+      throw new UnauthorizedException(
+        'Sesion expirada. Inicia sesión nuevamente',
+      );
     }
 
+    // Check system-level access blocks (suspension, etc.)
     const accessBlock = getSystemAccessBlockReason(user);
     if (accessBlock) {
       throw new UnauthorizedException(accessBlock.message);

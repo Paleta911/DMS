@@ -17,52 +17,54 @@ export type ApiErrorResponse = {
   timestamp: string;
 };
 
-const VALIDATION_TRANSLATIONS: Array<{ pattern: RegExp; replacement: string }> = [
-  {
-    pattern: /^(.+?) must be longer than or equal to (\d+) characters$/i,
-    replacement: '$1 debe tener al menos $2 caracteres',
-  },
-  {
-    pattern: /^(.+?) must be shorter than or equal to (\d+) characters$/i,
-    replacement: '$1 debe tener máximo $2 caracteres',
-  },
-  {
-    pattern: /^(.+?) must be an email$/i,
-    replacement: '$1 debe ser un correo válido',
-  },
-  {
-    pattern: /^(.+?) should not be empty$/i,
-    replacement: '$1 es obligatorio',
-  },
-  {
-    pattern: /^(.+?) must be a string$/i,
-    replacement: '$1 debe ser texto',
-  },
-  {
-    pattern: /^(.+?) must be a boolean value$/i,
-    replacement: '$1 debe ser verdadero o falso',
-  },
-  {
-    pattern: /^(.+?) must be an integer number$/i,
-    replacement: '$1 debe ser un número entero válido',
-  },
-  {
-    pattern: /^(.+?) must not be less than (\d+)$/i,
-    replacement: '$1 debe ser mayor o igual a $2',
-  },
-  {
-    pattern: /^(.+?) must be a number conforming to the specified constraints$/i,
-    replacement: '$1 debe ser un número válido',
-  },
-  {
-    pattern: /^(.+?) must be one of the following values: (.+)$/i,
-    replacement: '$1 debe ser uno de los siguientes valores: $2',
-  },
-  {
-    pattern: /^property (.+) should not exist$/i,
-    replacement: 'No se permite el campo $1',
-  },
-];
+const VALIDATION_TRANSLATIONS: Array<{ pattern: RegExp; replacement: string }> =
+  [
+    {
+      pattern: /^(.+?) must be longer than or equal to (\d+) characters$/i,
+      replacement: '$1 debe tener al menos $2 caracteres',
+    },
+    {
+      pattern: /^(.+?) must be shorter than or equal to (\d+) characters$/i,
+      replacement: '$1 debe tener máximo $2 caracteres',
+    },
+    {
+      pattern: /^(.+?) must be an email$/i,
+      replacement: '$1 debe ser un correo válido',
+    },
+    {
+      pattern: /^(.+?) should not be empty$/i,
+      replacement: '$1 es obligatorio',
+    },
+    {
+      pattern: /^(.+?) must be a string$/i,
+      replacement: '$1 debe ser texto',
+    },
+    {
+      pattern: /^(.+?) must be a boolean value$/i,
+      replacement: '$1 debe ser verdadero o falso',
+    },
+    {
+      pattern: /^(.+?) must be an integer number$/i,
+      replacement: '$1 debe ser un número entero válido',
+    },
+    {
+      pattern: /^(.+?) must not be less than (\d+)$/i,
+      replacement: '$1 debe ser mayor o igual a $2',
+    },
+    {
+      pattern:
+        /^(.+?) must be a number conforming to the specified constraints$/i,
+      replacement: '$1 debe ser un número válido',
+    },
+    {
+      pattern: /^(.+?) must be one of the following values: (.+)$/i,
+      replacement: '$1 debe ser uno de los siguientes valores: $2',
+    },
+    {
+      pattern: /^property (.+) should not exist$/i,
+      replacement: 'No se permite el campo $1',
+    },
+  ];
 
 const DIRECT_REPLACEMENTS: Array<[RegExp, string]> = [
   [/Credenciales invalidas/gi, 'Credenciales inválidas'],
@@ -109,10 +111,9 @@ export function normalizeApiMessage(message: string) {
 }
 
 export function normalizeApiMessages(input: unknown): string[] {
+  // Accept nested arrays/strings from validator libraries and flatten consistently.
   if (Array.isArray(input)) {
-    return input
-      .flatMap((item) => normalizeApiMessages(item))
-      .filter(Boolean);
+    return input.flatMap((item) => normalizeApiMessages(item)).filter(Boolean);
   }
   if (typeof input === 'string') {
     const normalized = translateValidationMessage(input);
@@ -125,8 +126,13 @@ export function collectValidationMessages(errors: ValidationError[]): string[] {
   return errors.flatMap((error) => flattenValidationError(error));
 }
 
-function flattenValidationError(error: ValidationError, parentPath?: string): string[] {
-  const propertyPath = parentPath ? `${parentPath}.${error.property}` : error.property;
+function flattenValidationError(
+  error: ValidationError,
+  parentPath?: string,
+): string[] {
+  const propertyPath = parentPath
+    ? `${parentPath}.${error.property}`
+    : error.property;
   const messages = Object.values(error.constraints ?? {}).map((message) =>
     translateValidationMessage(message.replace(error.property, propertyPath)),
   );
@@ -141,6 +147,7 @@ function flattenValidationError(error: ValidationError, parentPath?: string): st
 }
 
 export function createValidationException(errors: ValidationError[]) {
+  // Validation errors are collapsed into one localized API payload.
   const messages = collectValidationMessages(errors);
   return new BadRequestException({
     message: messages.join(', ') || 'Solicitud inválida',
@@ -159,6 +166,7 @@ export function buildApiErrorResponse(params: {
   remainingSec?: number;
   blockedUntil?: string;
 }): ApiErrorResponse {
+  // Single source of truth for HTTP error envelope shape.
   return {
     statusCode: params.statusCode,
     error: params.error ?? STATUS_LABELS[params.statusCode] ?? 'Error',
@@ -172,7 +180,9 @@ export function buildApiErrorResponse(params: {
       : {}),
     ...(params.blockedUntil ? { blockedUntil: params.blockedUntil } : {}),
     path: params.request.originalUrl ?? params.request.url ?? '/',
-    ...(params.request.requestId ? { requestId: params.request.requestId } : {}),
+    ...(params.request.requestId
+      ? { requestId: params.request.requestId }
+      : {}),
     timestamp: new Date().toISOString(),
   };
 }

@@ -6,8 +6,17 @@ import {
 } from './lib/infra-utils.mjs';
 
 async function main() {
-  const { dbHost, dbPort, dbUser, dbName, dbPass, dbEncrypt, dbTrustCert, esNode } =
-    resolveInfraEnv();
+  // Pull effective infra coordinates from .env resolution helpers.
+  const {
+    dbHost,
+    dbPort,
+    dbUser,
+    dbName,
+    dbPass,
+    dbEncrypt,
+    dbTrustCert,
+    esNode,
+  } = resolveInfraEnv();
 
   const db = await checkSqlReady({
     host: dbHost,

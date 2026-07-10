@@ -22,6 +22,7 @@ import { CreateDocumentTypeDto } from './dto/create-document-type.dto';
 import { UpdateDocumentTypeDto } from './dto/update-document-type.dto';
 import { HttpAuditService } from '../audit-log/http-audit.service';
 
+// Document types admin controller: CRUD endpoints for taxonomy of document classifications with role/audit protection
 @ApiTags('document-types')
 @Controller('document-types')
 export class DocumentTypesController {
@@ -30,6 +31,7 @@ export class DocumentTypesController {
     private readonly httpAuditService: HttpAuditService,
   ) {}
 
+  // List all document types (authenticated users); supports pagination/filtering
   @UseGuards(JwtAuthGuard)
   @Get()
   @ApiBearerAuth()
@@ -43,6 +45,7 @@ export class DocumentTypesController {
     });
   }
 
+  // Create new document type (admin only); audit logs creation event
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.Admin)
   @Post()

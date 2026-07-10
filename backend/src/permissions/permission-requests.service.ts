@@ -8,6 +8,7 @@ import { PermissionRequestsCreateService } from './permission-requests-create.se
 import { PermissionRequestsQueryService } from './permission-requests-query.service';
 import { PermissionRequestsReviewService } from './permission-requests-review.service';
 
+// Facade service that centralizes permission request use-cases across create/query/review services.
 @Injectable()
 export class PermissionRequestsService {
   constructor(
@@ -33,6 +34,7 @@ export class PermissionRequestsService {
     ip?: string;
     userAgent?: string;
   }) {
+    // Area and permission creation share a common orchestration layer.
     return this.createService.createAreaRequest(params);
   }
 
@@ -65,7 +67,13 @@ export class PermissionRequestsService {
     return this.queryService.getById(id);
   }
 
-  async approveRequest(params: { id: number; adminId: number; ip?: string; userAgent?: string }) {
+  async approveRequest(params: {
+    id: number;
+    adminId: number;
+    ip?: string;
+    userAgent?: string;
+  }) {
+    // Review actions are centralized to keep audit and transition rules consistent.
     return this.reviewService.approveRequest(params);
   }
 
@@ -80,7 +88,13 @@ export class PermissionRequestsService {
     return this.reviewService.approvePartialAreaRequest(params);
   }
 
-  async rejectRequest(params: { id: number; adminId: number; reason?: string; ip?: string; userAgent?: string }) {
+  async rejectRequest(params: {
+    id: number;
+    adminId: number;
+    reason?: string;
+    ip?: string;
+    userAgent?: string;
+  }) {
     return this.reviewService.rejectRequest(params);
   }
 }

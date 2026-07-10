@@ -13,6 +13,7 @@ async function run() {
   const app = await NestFactory.create(AppModule, { logger: false });
 
   try {
+    // Reuse runtime module graph so exported contract matches real app wiring.
     const config = new DocumentBuilder()
       .setTitle('DMS API')
       .setDescription('Document Management System API')
@@ -25,6 +26,7 @@ async function run() {
     writeFileSync(outputPath, `${JSON.stringify(document, null, 2)}\n`, 'utf8');
     console.log(`[openapi] exportado: ${outputPath}`);
   } finally {
+    // Ensure Nest context is always closed in script mode.
     await app.close();
   }
 }

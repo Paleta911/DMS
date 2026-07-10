@@ -1,6 +1,7 @@
 import { ConflictException, NotFoundException } from '@nestjs/common';
 import { CategoriesMutationService } from './categories-mutation.service';
 
+// Verifies category mutation rules: reactivation, soft-delete cleanup, duplicates, and missing records.
 describe('CategoriesMutationService', () => {
   const categoryRepo = {
     findOne: jest.fn(),
@@ -14,7 +15,10 @@ describe('CategoriesMutationService', () => {
   let service: CategoriesMutationService;
 
   beforeEach(() => {
-    service = new CategoriesMutationService(categoryRepo as never, documentRepo as never);
+    service = new CategoriesMutationService(
+      categoryRepo as never,
+      documentRepo as never,
+    );
     jest.clearAllMocks();
   });
 
@@ -36,13 +40,19 @@ describe('CategoriesMutationService', () => {
       where: jest.fn().mockReturnThis(),
       execute: jest.fn().mockResolvedValue(undefined),
     };
-    categoryRepo.findOne.mockResolvedValue({ id: 7, nombre: 'SIG', activo: true });
+    categoryRepo.findOne.mockResolvedValue({
+      id: 7,
+      nombre: 'SIG',
+      activo: true,
+    });
     categoryRepo.save.mockImplementation(async (value) => value);
     documentRepo.createQueryBuilder.mockReturnValue(updateChain);
 
     const result = await service.remove(7);
 
-    expect(updateChain.where).toHaveBeenCalledWith('categoryId = :id', { id: 7 });
+    expect(updateChain.where).toHaveBeenCalledWith('categoryId = :id', {
+      id: 7,
+    });
     expect(categoryRepo.save).toHaveBeenCalledWith(
       expect.objectContaining({ id: 7, activo: false }),
     );
@@ -50,9 +60,15 @@ describe('CategoriesMutationService', () => {
   });
 
   it('rechaza crear una categoria activa duplicada', async () => {
-    categoryRepo.findOne.mockResolvedValue({ id: 1, nombre: 'Calidad', activo: true });
+    categoryRepo.findOne.mockResolvedValue({
+      id: 1,
+      nombre: 'Calidad',
+      activo: true,
+    });
 
-    await expect(service.create('Calidad')).rejects.toBeInstanceOf(ConflictException);
+    await expect(service.create('Calidad')).rejects.toBeInstanceOf(
+      ConflictException,
+    );
   });
 
   it('falla si intenta desactivar una categoria inexistente', async () => {

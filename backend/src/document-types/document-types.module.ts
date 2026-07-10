@@ -8,6 +8,7 @@ import { DocumentTypesQueryService } from './document-types-query.service';
 import { AuditLogModule } from '../audit-log/audit-log.module';
 import { Document } from '../documents/document.entity';
 
+// Document types module encapsulates taxonomy catalog endpoints and related persistence services.
 @Module({
   imports: [TypeOrmModule.forFeature([DocumentType, Document]), AuditLogModule],
   providers: [

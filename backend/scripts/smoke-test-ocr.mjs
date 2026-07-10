@@ -40,6 +40,7 @@ async function requestJson(url, options = {}) {
 }
 
 async function waitForHealth(url, attempts = 120, delayMs = 500) {
+  // Espera activa del endpoint de salud antes de ejecutar el flujo OCR.
   for (let i = 0; i < attempts; i += 1) {
     try {
       const res = await fetch(url);
@@ -79,6 +80,7 @@ function runMigrationsOrThrow() {
 }
 
 function killPort(port) {
+  // Asegura puerto limpio para evitar que una corrida previa rompa el smoke.
   const netstat = spawnSync('netstat', ['-aon'], {
     encoding: 'utf8',
     shell: true,
@@ -116,6 +118,7 @@ function killPort(port) {
 
 async function ensureServer(url) {
   const healthUrl = `${url}/health`;
+  // Orden requerido: liberar puerto -> compilar -> migrar -> arrancar -> validar health.
   killPort(3000);
   runBuildOrThrow();
   runMigrationsOrThrow();
@@ -157,6 +160,7 @@ async function ensureServer(url) {
 }
 
 function ensurePythonScannedPdf(targetPath) {
+  // Genera un PDF rasterizado para forzar ruta OCR en lugar de texto incrustado.
   const script = `
 from PIL import Image, ImageDraw, ImageFont
 

@@ -14,6 +14,7 @@ dotenv.config({ path: path.resolve(__dirname, '..', '.env') });
 
 const { esNode, dbHost, dbPort } = resolveInfraEnv();
 const strictElastic =
+  // Strict mode forces infra readiness instead of skipping dependent smoke tests.
   process.argv.includes('--strict') ||
   ['1', 'true', 'yes'].includes(
     String(process.env.CI_LOCAL_STRICT ?? '').toLowerCase(),
@@ -37,12 +38,15 @@ function runNpmScript(scriptName) {
         resolve();
         return;
       }
-      reject(new Error(`[ci:local] npm run ${scriptName} failed with code ${code}`));
+      reject(
+        new Error(`[ci:local] npm run ${scriptName} failed with code ${code}`),
+      );
     });
   });
 }
 
 function commandReady(command, args = ['--version']) {
+  // Detect binary presence without polluting stdout.
   const result = spawnSync(command, args, {
     stdio: 'ignore',
     shell: false,
@@ -54,6 +58,7 @@ function commandReady(command, args = ['--version']) {
 }
 
 async function ensureDatabaseReady() {
+  // Primer intento corto: reutiliza infraestructura ya encendida antes de levantar contenedores.
   let dbReady = await waitForDependency({
     label: `sqlserver ${dbHost}:${dbPort}`,
     timeoutMs: 15000,
@@ -84,10 +89,13 @@ async function ensureElasticReadyForStrictMode() {
   }
 
   if (!strictElastic) {
+    // En modo no estricto, permite continuar y omitir smoke dependiente de elastic.
     return elastic;
   }
 
-  console.log(`[ci:local] elastic not ready at ${esNode}; starting infra:up:search`);
+  console.log(
+    `[ci:local] elastic not ready at ${esNode}; starting infra:up:search`,
+  );
   await runNpmScript('infra:up:search');
   return waitForDependency({
     label: `elasticsearch ${esNode}`,
@@ -125,12 +133,14 @@ async function main() {
   }
 
   const ocrEnabled =
+    // OCR smoke runs only when OCR is enabled and local binaries are reachable.
     ['1', 'true', 'yes'].includes(
       String(process.env.OCR_ENABLED ?? 'true').toLowerCase(),
     ) && commandReady(process.env.OCR_TESSERACT_BIN || 'tesseract');
-  const pdftoppmReady = commandReady(process.env.OCR_PDFTOPPM_BIN || 'pdftoppm', [
-    '-v',
-  ]);
+  const pdftoppmReady = commandReady(
+    process.env.OCR_PDFTOPPM_BIN || 'pdftoppm',
+    ['-v'],
+  );
   if (ocrEnabled && pdftoppmReady) {
     await runNpmScript('test:smoke:ocr');
   } else if (strictOcr) {

@@ -1,8 +1,10 @@
-import { format } from 'date-fns';
+// Date formatting utility: converts ISO strings to localized Spanish format (DD/MM/YYYY HH:mm)
+// Returns placeholder '—' for null/invalid dates
+import { format } from "date-fns";
 
 export function formatDate(value?: string | null) {
-  if (!value) return '—';
+  if (!value) return "—";
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '—';
-  return format(date, 'dd/MM/yyyy HH:mm');
+  if (Number.isNaN(date.getTime())) return "—";
+  return format(date, "dd/MM/yyyy HH:mm");
 }

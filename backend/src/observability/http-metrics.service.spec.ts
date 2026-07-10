@@ -1,5 +1,6 @@
 import { HttpMetricsService } from './http-metrics.service';
 
+// Ensures HTTP metrics aggregation handles status buckets, route normalization, and slow-request tracking.
 describe('HttpMetricsService', () => {
   it('records totals and route stats', () => {
     const service = new HttpMetricsService();

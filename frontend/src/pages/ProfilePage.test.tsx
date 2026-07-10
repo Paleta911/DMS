@@ -1,11 +1,12 @@
-import { fireEvent, screen, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AuthUser } from '../types/auth';
-import type { UserProfile } from '../types/users';
-import { queryClient } from '../app/queryClient';
-import { renderWithProviders } from '../test/test-utils';
-import ProfilePage from './ProfilePage';
+import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { AuthUser } from "../types/auth";
+import type { UserProfile } from "../types/users";
+import { queryClient } from "../app/queryClient";
+import { renderWithProviders } from "../test/test-utils";
+import ProfilePage from "./ProfilePage";
 
+// Profile page tests validate readonly identity fields and area/profile update payload behavior.
 const mocks = vi.hoisted(() => ({
   auth: {
     user: null as AuthUser | null,
@@ -21,38 +22,38 @@ const mocks = vi.hoisted(() => ({
   },
 }));
 
-vi.mock('../auth/AuthContext', () => ({
+vi.mock("../auth/AuthContext", () => ({
   useAuth: () => ({
     user: mocks.auth.user,
-    token: 'token',
-    refreshToken: 'refresh',
-    isAdmin: mocks.auth.user?.role === 'admin',
+    token: "token",
+    refreshToken: "refresh",
+    isAdmin: mocks.auth.user?.role === "admin",
     login: vi.fn(),
     logout: vi.fn(),
     refreshUser: mocks.auth.refreshUser,
   }),
 }));
 
-vi.mock('../components/ToastProvider', () => ({
+vi.mock("../components/ToastProvider", () => ({
   useToast: () => ({
     notify: mocks.notify,
   }),
 }));
 
-vi.mock('../api/endpoints/users', () => mocks.api);
-vi.mock('../hooks/useCatalogQueries', () => mocks.areas);
+vi.mock("../api/endpoints/users", () => mocks.api);
+vi.mock("../hooks/useCatalogQueries", () => mocks.areas);
 
 const baseProfile: UserProfile = {
   id: 10,
-  email: 'ana@bsm.com.mx',
-  role: 'user',
-  status: 'APPROVED',
-  nombre: 'Ana',
-  primerApellido: 'Lopez',
-  segundoApellido: 'Garcia',
-  telefono: '2713882691',
-  fechaNacimiento: '1995-02-01',
-  allowedAreaCodes: ['FA'],
+  email: "ana@bsm.com.mx",
+  role: "user",
+  status: "APPROVED",
+  nombre: "Ana",
+  primerApellido: "Lopez",
+  segundoApellido: "Garcia",
+  telefono: "2713882691",
+  fechaNacimiento: "1995-02-01",
+  allowedAreaCodes: ["FA"],
   requestedAreaNombre: null,
   permissions: {
     canAccess: true,
@@ -69,7 +70,7 @@ const baseProfile: UserProfile = {
   },
 };
 
-describe('ProfilePage', () => {
+describe("ProfilePage", () => {
   beforeEach(() => {
     queryClient.clear();
     mocks.notify.mockReset();
@@ -83,97 +84,101 @@ describe('ProfilePage', () => {
     mocks.api.usersUpdateMe.mockResolvedValue(baseProfile);
     mocks.areas.useAreaCodesQuery.mockReturnValue({
       data: [
-        { id: 1, code: 'FA', nombre: 'Fabrica' },
-        { id: 2, code: 'RH', nombre: 'Recursos Humanos' },
+        { id: 1, code: "FA", nombre: "Fabrica" },
+        { id: 2, code: "RH", nombre: "Recursos Humanos" },
       ],
       isLoading: false,
     });
   });
 
-  it('muestra correo no editable y aviso de area pendiente cuando aplica', async () => {
+  it("muestra correo no editable y aviso de area pendiente cuando aplica", async () => {
     mocks.api.usersMe.mockResolvedValue({
       ...baseProfile,
       allowedAreaCodes: [],
-      requestedAreaNombre: 'Laboratorio',
+      requestedAreaNombre: "Laboratorio",
     });
 
     renderWithProviders(<ProfilePage />);
 
-    const emailInput = await screen.findByLabelText('Correo');
-    expect(emailInput).toHaveValue('ana@bsm.com.mx');
-    expect(emailInput).toHaveAttribute('readonly');
+    const emailInput = await screen.findByLabelText("Correo");
+    expect(emailInput).toHaveValue("ana@bsm.com.mx");
+    expect(emailInput).toHaveAttribute("readonly");
     expect(
-      screen.getByText('No puedes editar tu correo porque es único para tu cuenta.'),
+      screen.getByText(
+        "No puedes editar tu correo porque es único para tu cuenta.",
+      ),
     ).toBeInTheDocument();
-    expect(screen.getByText('Sin área asignada')).toBeInTheDocument();
+    expect(screen.getByText("Sin área asignada")).toBeInTheDocument();
     expect(
-      screen.getByText('El administrador asignará tu área en un lapso de 24 horas.'),
+      screen.getByText(
+        "El administrador asignará tu área en un lapso de 24 horas.",
+      ),
     ).toBeInTheDocument();
   });
 
-  it('actualiza datos y área seleccionada de la lista', async () => {
+  it("actualiza datos y área seleccionada de la lista", async () => {
     mocks.api.usersUpdateMe.mockResolvedValue({
       ...baseProfile,
-      nombre: 'Ana Maria',
-      allowedAreaCodes: ['RH'],
+      nombre: "Ana Maria",
+      allowedAreaCodes: ["RH"],
     });
 
     renderWithProviders(<ProfilePage />);
 
-    await screen.findByDisplayValue('Ana');
-    fireEvent.change(screen.getByLabelText('Nombre(s)'), {
-      target: { value: 'Ana Maria' },
+    await screen.findByDisplayValue("Ana");
+    fireEvent.change(screen.getByLabelText("Nombre(s)"), {
+      target: { value: "Ana Maria" },
     });
-    fireEvent.change(screen.getByLabelText('Área'), {
-      target: { value: 'RH' },
+    fireEvent.change(screen.getByLabelText("Área"), {
+      target: { value: "RH" },
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Guardar cambios' }));
+    fireEvent.click(screen.getByRole("button", { name: "Guardar cambios" }));
 
     await waitFor(() => {
       expect(mocks.api.usersUpdateMe).toHaveBeenCalled();
       expect(mocks.api.usersUpdateMe.mock.calls[0][0]).toEqual({
-        nombre: 'Ana Maria',
-        primerApellido: 'Lopez',
-        segundoApellido: 'Garcia',
-        telefono: '2713882691',
-        fechaNacimiento: '1995-02-01',
-        areaCode: 'RH',
+        nombre: "Ana Maria",
+        primerApellido: "Lopez",
+        segundoApellido: "Garcia",
+        telefono: "2713882691",
+        fechaNacimiento: "1995-02-01",
+        areaCode: "RH",
       });
     });
     expect(mocks.auth.refreshUser).toHaveBeenCalled();
-    expect(mocks.notify).toHaveBeenCalledWith('Perfil actualizado', 'success');
+    expect(mocks.notify).toHaveBeenCalledWith("Perfil actualizado", "success");
   });
 
-  it('envia solicitud de area manual y muestra aviso de 24 horas', async () => {
+  it("envia solicitud de area manual y muestra aviso de 24 horas", async () => {
     mocks.api.usersUpdateMe.mockResolvedValue({
       ...baseProfile,
       allowedAreaCodes: [],
-      requestedAreaNombre: 'Laboratorio',
+      requestedAreaNombre: "Laboratorio",
     });
 
     renderWithProviders(<ProfilePage />);
 
-    await screen.findByDisplayValue('Ana');
-    fireEvent.click(screen.getByLabelText('Mi área no está en la lista'));
-    fireEvent.change(screen.getByLabelText('Escribe tu área'), {
-      target: { value: 'Laboratorio' },
+    await screen.findByDisplayValue("Ana");
+    fireEvent.click(screen.getByLabelText("Mi área no está en la lista"));
+    fireEvent.change(screen.getByLabelText("Escribe tu área"), {
+      target: { value: "Laboratorio" },
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Guardar cambios' }));
+    fireEvent.click(screen.getByRole("button", { name: "Guardar cambios" }));
 
     await waitFor(() => {
       expect(mocks.api.usersUpdateMe).toHaveBeenCalled();
       expect(mocks.api.usersUpdateMe.mock.calls[0][0]).toEqual({
-        nombre: 'Ana',
-        primerApellido: 'Lopez',
-        segundoApellido: 'Garcia',
-        telefono: '2713882691',
-        fechaNacimiento: '1995-02-01',
-        requestedAreaNombre: 'Laboratorio',
+        nombre: "Ana",
+        primerApellido: "Lopez",
+        segundoApellido: "Garcia",
+        telefono: "2713882691",
+        fechaNacimiento: "1995-02-01",
+        requestedAreaNombre: "Laboratorio",
       });
     });
     expect(mocks.notify).toHaveBeenCalledWith(
-      'Perfil actualizado. El administrador asignará tu área en un lapso de 24 horas.',
-      'success',
+      "Perfil actualizado. El administrador asignará tu área en un lapso de 24 horas.",
+      "success",
     );
   });
 });

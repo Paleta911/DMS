@@ -146,6 +146,7 @@ export default function DocumentsPage() {
     file: null as File | null,
   });
   const debouncedQuery = useDebouncedValue(filters.q);
+  // Text search switches data source from SQL list endpoint to search endpoint.
   const hasTextSearch = Boolean(debouncedQuery.trim());
   const hasActiveFilters = Boolean(
     filters.q.trim() ||
@@ -320,6 +321,7 @@ export default function DocumentsPage() {
   }, [filters, limit, page, rememberLastUsed]);
 
   const canUploadDocument = () => {
+    // Admin bypasses granular upload flags by design.
     if (isAdmin) return true;
     return Boolean(user?.permissions?.canUpload);
   };

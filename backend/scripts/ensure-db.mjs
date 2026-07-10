@@ -2,6 +2,7 @@ import { ensureDatabaseExists, resolveInfraEnv } from './lib/infra-utils.mjs';
 
 async function main() {
   const env = resolveInfraEnv();
+  // Idempotent check/create so local and CI flows can call this safely multiple times.
   console.log(
     `[db:ensure] checking database ${env.dbName} on ${env.dbHost}:${env.dbPort}`,
   );

@@ -1,16 +1,17 @@
-import {
-  BadRequestException,
-  HttpException,
-  Injectable,
-} from '@nestjs/common';
+import { BadRequestException, HttpException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
 import { Repository } from 'typeorm';
-import { EmailVerification, EmailSendStatus } from './email-verification.entity';
+import {
+  EmailVerification,
+  EmailSendStatus,
+} from './email-verification.entity';
 import { EmailService } from '../email/email.service';
 import { getEnvNumber } from '../common/env.utils';
 import { User } from '../users/user.entity';
 
+// Email verification service manages code generation (6-digit), storage with TTL, retry limits, and resend cooldowns
+// Prevents brute-force attacks on email verification workflow
 @Injectable()
 export class VerificationService {
   private readonly maxAttempts: number;
@@ -22,6 +23,7 @@ export class VerificationService {
     private readonly verificationRepo: Repository<EmailVerification>,
     private readonly emailService: EmailService,
   ) {
+    // Load environment-based retry and expiration policies
     this.maxAttempts = getEnvNumber('VERIFICATION_MAX_ATTEMPTS', 5);
     this.ttlMinutes = getEnvNumber('VERIFICATION_CODE_TTL_MIN', 15);
     this.resendCooldownSec = Math.max(
@@ -30,6 +32,7 @@ export class VerificationService {
     );
   }
 
+  // Generate random 6-digit code for email verification
   generateCode() {
     return String(Math.floor(100000 + Math.random() * 900000));
   }
@@ -81,7 +84,8 @@ export class VerificationService {
     });
     record.sendStatus = result.status;
     record.sentAt = new Date();
-    record.lastError = result.status === EmailSendStatus.Failed ? result.error ?? null : null;
+    record.lastError =
+      result.status === EmailSendStatus.Failed ? (result.error ?? null) : null;
     await this.verificationRepo.save(record);
     return result;
   }
@@ -118,7 +122,8 @@ export class VerificationService {
     const verifyAttempts = record?.verifyAttempts ?? 0;
     const now = Date.now();
     const isExpired = expiresAtMs > 0 && expiresAtMs <= now;
-    const isBlocked = Boolean(record) && !isExpired && verifyAttempts >= this.maxAttempts;
+    const isBlocked =
+      Boolean(record) && !isExpired && verifyAttempts >= this.maxAttempts;
     const remainingSec =
       isBlocked && expiresAtMs > 0
         ? Math.max(0, Math.ceil((expiresAtMs - now) / 1000))

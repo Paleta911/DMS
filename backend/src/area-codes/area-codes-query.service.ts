@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { AreaCode } from './area-code.entity';
 
+// Query service for area catalogs with optional status filter, search, and pagination.
 @Injectable()
 export class AreaCodesQueryService {
   constructor(
@@ -18,6 +19,7 @@ export class AreaCodesQueryService {
     limit?: number;
   }) {
     const q = params?.q?.trim();
+    // Keep default behavior backwards compatible: only active records unless requested.
     const status =
       params?.status ?? (params?.includeInactive ? 'all' : 'active');
     const page = params?.page ?? 1;
@@ -49,6 +51,7 @@ export class AreaCodesQueryService {
   }
 
   findActiveList() {
+    // Public consumers (e.g., registration flow) only need active areas.
     return this.findAll({ includeInactive: false }) as Promise<AreaCode[]>;
   }
 }

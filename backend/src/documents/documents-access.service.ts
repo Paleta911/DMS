@@ -22,6 +22,7 @@ export class DocumentsAccessService {
     relations: FindOptionsRelations<Document> = { areaCode: true },
     includeHiddenStatuses = false,
   ) {
+    // Un array explicito vacio equivale a sin alcance operativo.
     if (allowedAreaCodes && allowedAreaCodes.length === 0) {
       throw new ForbiddenException('Sin acceso a este documento');
     }
@@ -35,6 +36,7 @@ export class DocumentsAccessService {
       throw new NotFoundException('Documento no encontrado');
     }
 
+    // Aplica control por area y por visibilidad de estado (ej. borradores/inactivos).
     this.assertDocumentScope(document, allowedAreaCodes);
     await this.documentVisibilityService.assertDocumentVisible(
       document.status,
@@ -44,6 +46,7 @@ export class DocumentsAccessService {
   }
 
   assertDocumentScope(document: Document, allowedAreaCodes?: string[] | null) {
+    // Admin/global: null o undefined omite filtro por area.
     if (!allowedAreaCodes) {
       return;
     }
@@ -52,10 +55,14 @@ export class DocumentsAccessService {
       throw new ForbiddenException('Sin acceso a este documento');
     }
 
-    if (document.areaCode && !allowedAreaCodes.includes(document.areaCode.code)) {
+    if (
+      document.areaCode &&
+      !allowedAreaCodes.includes(document.areaCode.code)
+    ) {
       throw new ForbiddenException('Sin acceso a este documento');
     }
 
+    // Si el documento no tiene area asociada, no puede validarse alcance de forma segura.
     if (!document.areaCode) {
       throw new ForbiddenException('Sin acceso a este documento');
     }

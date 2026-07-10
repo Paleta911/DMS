@@ -48,6 +48,7 @@ async function ensureDbAvailability() {
     return;
   }
 
+  // For local e2e, try self-healing by starting DB infra when unavailable.
   console.log(
     `[e2e:prepare] SQL no disponible en ${env.dbHost}:${env.dbPort}. Intentando levantar sqlserver por Docker Compose...`,
   );
@@ -74,6 +75,7 @@ async function ensureSearchAvailability() {
     return;
   }
 
+  // Same self-healing flow for Elasticsearch before running e2e tests.
   console.log(
     `[e2e:prepare] Elasticsearch no disponible en ${env.esNode}. Intentando levantar elasticsearch por Docker Compose...`,
   );
@@ -90,6 +92,7 @@ async function ensureSearchAvailability() {
 }
 
 async function main() {
+  // Prepare complete backend + frontend build artifacts before browser e2e execution.
   await ensureDbAvailability();
   await ensureSearchAvailability();
   await runNpmScript('db:ensure');
@@ -108,7 +111,9 @@ async function main() {
         resolve();
         return;
       }
-      reject(new Error(`npm run build (frontend) exited with code ${code ?? 1}`));
+      reject(
+        new Error(`npm run build (frontend) exited with code ${code ?? 1}`),
+      );
     });
   });
 }

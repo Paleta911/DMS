@@ -1,10 +1,11 @@
-import { http } from '../http';
+// Admin registrations API: query pending registrations, approve/reject, and manage registration lifecycle
+import { http } from "../http";
 
 export type RegistrationStatus =
-  | 'PENDING_VERIFICATION'
-  | 'PENDING_APPROVAL'
-  | 'APPROVED'
-  | 'REJECTED';
+  | "PENDING_VERIFICATION"
+  | "PENDING_APPROVAL"
+  | "APPROVED"
+  | "REJECTED";
 
 export type RegistrationRecord = {
   id: number;
@@ -27,23 +28,32 @@ export type RegistrationRecord = {
   lastAttemptAt?: string | null;
 };
 
+// Query pending registrations with optional filtering and pagination
 export async function adminRegistrationsList(params?: {
   status?: RegistrationStatus;
   q?: string;
   page?: number;
   limit?: number;
 }) {
-  const { data } = await http.get('/admin/registrations', { params });
-  return data as { items: RegistrationRecord[]; total: number; page: number; limit: number };
+  const { data } = await http.get("/admin/registrations", { params });
+  return data as {
+    items: RegistrationRecord[];
+    total: number;
+    page: number;
+    limit: number;
+  };
 }
 
+// Approve registration: move from PENDING_APPROVAL to APPROVED
 export async function adminRegistrationApprove(id: number) {
   const { data } = await http.post(`/admin/registrations/${id}/approve`);
   return data;
 }
 
 export async function adminRegistrationReject(id: number, reason?: string) {
-  const { data } = await http.post(`/admin/registrations/${id}/reject`, { reason });
+  const { data } = await http.post(`/admin/registrations/${id}/reject`, {
+    reason,
+  });
   return data;
 }
 
@@ -77,9 +87,9 @@ export async function adminRegistrationsExportCsv(params?: {
   q?: string;
   maxRows?: number;
 }) {
-  const { data } = await http.get<Blob>('/admin/registrations/export.csv', {
+  const { data } = await http.get<Blob>("/admin/registrations/export.csv", {
     params,
-    responseType: 'blob',
+    responseType: "blob",
   });
   return data;
 }

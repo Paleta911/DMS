@@ -1,11 +1,12 @@
-import { http } from '../http';
+import { http } from "../http";
 import type {
   Document,
   DocumentDetail,
   DocumentVisibilityPolicy,
   WorkflowResponse,
-} from '../../types/documents';
+} from "../../types/documents";
 
+// Documents API wrapper for list/detail, upload, workflow actions, and visibility policy admin.
 type DocumentsResponse =
   | Document[]
   | {
@@ -21,13 +22,14 @@ export type DocumentsListParams = {
   categoryId?: string;
   documentTypeCode?: string;
   areaCode?: string;
-  status?: Document['status'] | '';
+  status?: Document["status"] | "";
   from?: string;
   to?: string;
-  sortByName?: 'az' | 'za' | '';
+  sortByName?: "az" | "za" | "";
 };
 
 export async function documentsList(params?: DocumentsListParams) {
+  // Normalizes empty-string filters to undefined so backend query params stay clean.
   const requestParams = {
     page: params?.page,
     limit: params?.limit,
@@ -39,10 +41,11 @@ export async function documentsList(params?: DocumentsListParams) {
     to: params?.to || undefined,
     sortByName: params?.sortByName || undefined,
   };
-  const { data } = await http.get<DocumentsResponse>('/documents', {
+  const { data } = await http.get<DocumentsResponse>("/documents", {
     params: requestParams,
   });
   if (Array.isArray(data)) {
+    // Backward-compat path for endpoints returning bare arrays.
     return { items: data, total: data.length };
   }
   return {
@@ -54,25 +57,35 @@ export async function documentsList(params?: DocumentsListParams) {
 }
 
 export async function getDocument(id: number) {
+  // Detail includes metadata, workflow state, and related entities for document page.
   const { data } = await http.get<DocumentDetail>(`/documents/${id}`);
   return data;
 }
 
 export async function getWorkflow(id: number) {
-  const { data } = await http.get<WorkflowResponse>(`/documents/${id}/workflow`);
+  // Retrieves current reviewers/approvers and decision timeline.
+  const { data } = await http.get<WorkflowResponse>(
+    `/documents/${id}/workflow`,
+  );
   return data;
 }
 
 export async function getDocumentVersions(id: number) {
+  // Version history is displayed in document detail side panel.
   const { data } = await http.get(`/documents/${id}/versions`);
-  return data as DocumentDetail['versions'];
+  return data as DocumentDetail["versions"];
 }
 
 export async function uploadDocument(form: FormData) {
-  const { data } = await http.post('/documents/upload', form, {
-    headers: { 'Content-Type': 'multipart/form-data' },
+  // Multipart upload endpoint handles both new documents and new versions.
+  const { data } = await http.post("/documents/upload", form, {
+    headers: { "Content-Type": "multipart/form-data" },
   });
-  return data as { documentId: number; versionId: number; codigo?: string | null };
+  return data as {
+    documentId: number;
+    versionId: number;
+    codigo?: string | null;
+  };
 }
 
 export async function updateDocument(
@@ -90,8 +103,16 @@ export async function updateDocument(
   return data;
 }
 
-export async function workflowAssign(id: number, revisoUserId: number, aproboUserId: number) {
-  const { data } = await http.patch(`/documents/${id}/assign-reviewers`, { revisoUserId, aproboUserId });
+export async function workflowAssign(
+  id: number,
+  revisoUserId: number,
+  aproboUserId: number,
+) {
+  // Admin/authorized users assign review and approval users before submit.
+  const { data } = await http.patch(`/documents/${id}/assign-reviewers`, {
+    revisoUserId,
+    aproboUserId,
+  });
   return data as WorkflowResponse;
 }
 
@@ -100,12 +121,18 @@ export async function workflowSubmit(id: number) {
   return data as WorkflowResponse;
 }
 
-export async function workflowReview(id: number, payload: { decision: 'APPROVED' | 'REJECTED'; comentario?: string }) {
+export async function workflowReview(
+  id: number,
+  payload: { decision: "APPROVED" | "REJECTED"; comentario?: string },
+) {
   const { data } = await http.post(`/documents/${id}/review`, payload);
   return data as WorkflowResponse;
 }
 
-export async function workflowApprove(id: number, payload: { decision: 'APPROVED' | 'REJECTED'; comentario?: string }) {
+export async function workflowApprove(
+  id: number,
+  payload: { decision: "APPROVED" | "REJECTED"; comentario?: string },
+) {
   const { data } = await http.post(`/documents/${id}/approve`, payload);
   return data as WorkflowResponse;
 }
@@ -116,15 +143,18 @@ export async function workflowObsolete(id: number) {
 }
 
 export async function getDocumentVisibilityPolicy() {
-  const { data } = await http.get<DocumentVisibilityPolicy>('/document-visibility');
+  const { data } = await http.get<DocumentVisibilityPolicy>(
+    "/document-visibility",
+  );
   return data;
 }
 
 export async function updateDocumentVisibilityPolicy(
-  payload: Partial<Omit<DocumentVisibilityPolicy, 'updatedAt'>>,
+  payload: Partial<Omit<DocumentVisibilityPolicy, "updatedAt">>,
 ) {
+  // Admin-only toggle to control which statuses are visible to regular users.
   const { data } = await http.patch<DocumentVisibilityPolicy>(
-    '/document-visibility',
+    "/document-visibility",
     payload,
   );
   return data;

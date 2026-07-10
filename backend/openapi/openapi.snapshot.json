@@ -642,7 +642,7 @@
                     "type": "string"
                   },
                   "password": {
-                    "example": "Admin123",
+                    "example": "<ADMIN_PASSWORD>",
                     "type": "string"
                   }
                 },

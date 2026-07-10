@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Category } from './category.entity';
 
+// Query service handles category listing with optional pagination, filtering by active status, and text search
 @Injectable()
 export class CategoriesQueryService {
   constructor(
@@ -10,6 +11,7 @@ export class CategoriesQueryService {
     private readonly categoryRepo: Repository<Category>,
   ) {}
 
+  // List categories with optional filtering (active/inactive), pagination, and keyword search
   async findAll(params?: {
     q?: string;
     includeInactive?: boolean;
@@ -18,6 +20,7 @@ export class CategoriesQueryService {
     limit?: number;
   }) {
     const q = params?.q?.trim();
+    // Determine status filter: default active unless explicitly requested otherwise
     const status =
       params?.status ?? (params?.includeInactive ? 'all' : 'active');
     const page = params?.page ?? 1;

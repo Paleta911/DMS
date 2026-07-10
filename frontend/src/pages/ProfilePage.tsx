@@ -1,22 +1,22 @@
-import { zodResolver } from '@hookform/resolvers/zod';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useMemo } from 'react';
-import { useForm } from 'react-hook-form';
-import { useAuth } from '../auth/AuthContext';
-import { usersMe, usersUpdateMe } from '../api/endpoints/users';
-import { queryKeys } from '../app/queryKeys';
-import { Button } from '../components/ui/Button';
-import { Input } from '../components/ui/Input';
-import { Select } from '../components/ui/Select';
-import { PageContainer } from '../components/layout/PageContainer';
-import { PageHeader } from '../components/layout/PageHeader';
-import { SectionCard } from '../components/layout/SectionCard';
-import { Spinner } from '../components/ui/Spinner';
-import { FadeInSection } from '../components/ui/Motion';
-import { useToast } from '../components/ToastProvider';
-import { useAreaCodesQuery } from '../hooks/useCatalogQueries';
-import { translateStatus } from '../utils/labels';
-import { getApiErrorMessage } from '../utils/apiError';
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useMemo } from "react";
+import { useForm } from "react-hook-form";
+import { useAuth } from "../auth/AuthContext";
+import { usersMe, usersUpdateMe } from "../api/endpoints/users";
+import { queryKeys } from "../app/queryKeys";
+import { Button } from "../components/ui/Button";
+import { Input } from "../components/ui/Input";
+import { Select } from "../components/ui/Select";
+import { PageContainer } from "../components/layout/PageContainer";
+import { PageHeader } from "../components/layout/PageHeader";
+import { SectionCard } from "../components/layout/SectionCard";
+import { Spinner } from "../components/ui/Spinner";
+import { FadeInSection } from "../components/ui/Motion";
+import { useToast } from "../components/ToastProvider";
+import { useAreaCodesQuery } from "../hooks/useCatalogQueries";
+import { translateStatus } from "../utils/labels";
+import { getApiErrorMessage } from "../utils/apiError";
 import {
   getBirthDateBounds,
   normalizePersonName,
@@ -25,28 +25,28 @@ import {
   sanitizePersonNameInput,
   sanitizePhoneOnly,
   type ProfileFormValues,
-} from '../features/account/accountForm';
+} from "../features/account/accountForm";
 import {
   PASSWORD_MAX_LENGTH,
   USER_EMAIL_MAX_LENGTH,
   USER_NAME_MAX_LENGTH,
   USER_PHONE_MAX_LENGTH,
   USER_REQUESTED_AREA_MAX_LENGTH,
-} from '../constants/fieldLimits';
-import type { UserProfile } from '../types/users';
+} from "../constants/fieldLimits";
+import type { UserProfile } from "../types/users";
 
 const permissionLabels: Record<string, string> = {
-  canAccess: 'Acceso al sistema',
-  canRead: 'Ver documentos',
-  canUpload: 'Subir documentos',
-  canUploadNewVersion: 'Subir nueva versión',
-  canReview: 'Revisar documentos',
-  canApprove: 'Aprobar documentos',
-  canDelete: 'Eliminar documentos',
+  canAccess: "Acceso al sistema",
+  canRead: "Ver documentos",
+  canUpload: "Subir documentos",
+  canUploadNewVersion: "Subir nueva versión",
+  canReview: "Revisar documentos",
+  canApprove: "Aprobar documentos",
+  canDelete: "Eliminar documentos",
 };
 
 function toDateInput(value?: string | null) {
-  return value ? String(value).slice(0, 10) : '';
+  return value ? String(value).slice(0, 10) : "";
 }
 
 function buildProfileDefaults(profile: UserProfile): ProfileFormValues {
@@ -54,20 +54,22 @@ function buildProfileDefaults(profile: UserProfile): ProfileFormValues {
   const hasPendingManualAreaRequest =
     Boolean(profile.requestedAreaNombre) && allowedAreaCodes.length === 0;
 
+  // Defaults preserve pending manual area requests when no area has been assigned yet.
+
   return {
-    nombre: profile.nombre ?? '',
-    primerApellido: profile.primerApellido ?? '',
-    segundoApellido: profile.segundoApellido ?? '',
-    telefono: profile.telefono ?? '',
+    nombre: profile.nombre ?? "",
+    primerApellido: profile.primerApellido ?? "",
+    segundoApellido: profile.segundoApellido ?? "",
+    telefono: profile.telefono ?? "",
     fechaNacimiento: toDateInput(profile.fechaNacimiento),
     useCustomArea: hasPendingManualAreaRequest,
-    areaCode: hasPendingManualAreaRequest ? '' : allowedAreaCodes[0] ?? '',
+    areaCode: hasPendingManualAreaRequest ? "" : (allowedAreaCodes[0] ?? ""),
     requestedAreaNombre: hasPendingManualAreaRequest
-      ? profile.requestedAreaNombre ?? ''
-      : '',
-    currentPassword: '',
-    password: '',
-    confirmPassword: '',
+      ? (profile.requestedAreaNombre ?? "")
+      : "",
+    currentPassword: "",
+    password: "",
+    confirmPassword: "",
   };
 }
 
@@ -80,7 +82,9 @@ export default function ProfilePage() {
     queryKey: queryKeys.users.me,
     queryFn: usersMe,
   });
-  const profile: UserProfile | null = (profileQuery.data ?? user ?? null) as UserProfile | null;
+  const profile: UserProfile | null = (profileQuery.data ??
+    user ??
+    null) as UserProfile | null;
   const tasks = profileQuery.data?.tasks;
   const permissions = profile?.permissions ?? null;
   const allowedAreaCodes = profile?.allowedAreaCodes ?? [];
@@ -90,7 +94,7 @@ export default function ProfilePage() {
 
   const areaLabel = useMemo(() => {
     if (hasPendingManualAreaRequest || allowedAreaCodes.length === 0) {
-      return 'Sin área asignada';
+      return "Sin área asignada";
     }
 
     const areaNameByCode = new Map(
@@ -98,14 +102,16 @@ export default function ProfilePage() {
     );
     return allowedAreaCodes
       .map((code) => areaNameByCode.get(code) ?? code)
-      .join(', ');
+      .join(", ");
   }, [allowedAreaCodes, areasQuery.data, hasPendingManualAreaRequest]);
 
   const multipleAreasAssigned = allowedAreaCodes.length > 1;
-  const initialAreaCode = hasPendingManualAreaRequest ? '' : allowedAreaCodes[0] ?? '';
+  const initialAreaCode = hasPendingManualAreaRequest
+    ? ""
+    : (allowedAreaCodes[0] ?? "");
   const initialRequestedAreaNombre = hasPendingManualAreaRequest
-    ? profile?.requestedAreaNombre?.trim() ?? ''
-    : '';
+    ? (profile?.requestedAreaNombre?.trim() ?? "")
+    : "";
 
   const {
     register,
@@ -117,17 +123,17 @@ export default function ProfilePage() {
   } = useForm<ProfileFormValues>({
     resolver: zodResolver(profileSchema),
     defaultValues: {
-      nombre: '',
-      primerApellido: '',
-      segundoApellido: '',
-      telefono: '',
-      fechaNacimiento: '',
+      nombre: "",
+      primerApellido: "",
+      segundoApellido: "",
+      telefono: "",
+      fechaNacimiento: "",
       useCustomArea: false,
-      areaCode: '',
-      requestedAreaNombre: '',
-      currentPassword: '',
-      password: '',
-      confirmPassword: '',
+      areaCode: "",
+      requestedAreaNombre: "",
+      currentPassword: "",
+      password: "",
+      confirmPassword: "",
     },
   });
 
@@ -138,20 +144,20 @@ export default function ProfilePage() {
     reset(buildProfileDefaults(profile));
   }, [profile, reset]);
 
-  const nombreValue = watch('nombre');
-  const primerApellidoValue = watch('primerApellido');
-  const segundoApellidoValue = watch('segundoApellido');
-  const telefonoValue = watch('telefono');
-  const useCustomArea = watch('useCustomArea');
+  const nombreValue = watch("nombre");
+  const primerApellidoValue = watch("primerApellido");
+  const segundoApellidoValue = watch("segundoApellido");
+  const telefonoValue = watch("telefono");
+  const useCustomArea = watch("useCustomArea");
 
   const bindPersonNameField = (
-    field: 'nombre' | 'primerApellido' | 'segundoApellido',
+    field: "nombre" | "primerApellido" | "segundoApellido",
     value: string | undefined,
   ) => {
     const fieldRegistration = register(field);
     return {
       ...fieldRegistration,
-      value: value ?? '',
+      value: value ?? "",
       onChange: (event: React.ChangeEvent<HTMLInputElement>) => {
         const sanitizedValue = sanitizePersonNameInput(event.target.value);
         setValue(field, sanitizedValue as ProfileFormValues[typeof field], {
@@ -163,7 +169,7 @@ export default function ProfilePage() {
       onPaste: (event: React.ClipboardEvent<HTMLInputElement>) => {
         event.preventDefault();
         const normalizedValue = normalizePersonName(
-          event.clipboardData.getData('text'),
+          event.clipboardData.getData("text"),
         );
         setValue(field, normalizedValue as ProfileFormValues[typeof field], {
           shouldDirty: true,
@@ -184,13 +190,13 @@ export default function ProfilePage() {
   };
 
   const bindPhoneField = (value: string | undefined) => {
-    const fieldRegistration = register('telefono');
+    const fieldRegistration = register("telefono");
     return {
       ...fieldRegistration,
-      value: value ?? '',
-      inputMode: 'numeric' as const,
+      value: value ?? "",
+      inputMode: "numeric" as const,
       onChange: (event: React.ChangeEvent<HTMLInputElement>) => {
-        setValue('telefono', sanitizePhoneOnly(event.target.value), {
+        setValue("telefono", sanitizePhoneOnly(event.target.value), {
           shouldDirty: true,
           shouldTouch: true,
           shouldValidate: true,
@@ -198,11 +204,15 @@ export default function ProfilePage() {
       },
       onPaste: (event: React.ClipboardEvent<HTMLInputElement>) => {
         event.preventDefault();
-        setValue('telefono', sanitizePhoneOnly(event.clipboardData.getData('text')), {
-          shouldDirty: true,
-          shouldTouch: true,
-          shouldValidate: true,
-        });
+        setValue(
+          "telefono",
+          sanitizePhoneOnly(event.clipboardData.getData("text")),
+          {
+            shouldDirty: true,
+            shouldTouch: true,
+            shouldValidate: true,
+          },
+        );
       },
     };
   };
@@ -216,13 +226,16 @@ export default function ProfilePage() {
       notify(
         updatedProfile.requestedAreaNombre &&
           (updatedProfile.allowedAreaCodes?.length ?? 0) === 0
-          ? 'Perfil actualizado. El administrador asignará tu área en un lapso de 24 horas.'
-          : 'Perfil actualizado',
-        'success',
+          ? "Perfil actualizado. El administrador asignará tu área en un lapso de 24 horas."
+          : "Perfil actualizado",
+        "success",
       );
     },
     onError: (error) => {
-      notify(getApiErrorMessage(error, 'No se pudo actualizar tu perfil'), 'error');
+      notify(
+        getApiErrorMessage(error, "No se pudo actualizar tu perfil"),
+        "error",
+      );
     },
   });
 
@@ -232,8 +245,8 @@ export default function ProfilePage() {
     }
 
     const normalizedRequestedAreaNombre =
-      values.requestedAreaNombre?.trim() ?? '';
-    const currentAreaCode = values.areaCode?.trim() ?? '';
+      values.requestedAreaNombre?.trim() ?? "";
+    const currentAreaCode = values.areaCode?.trim() ?? "";
     const areaChanged = values.useCustomArea
       ? !hasPendingManualAreaRequest ||
         normalizedRequestedAreaNombre !== initialRequestedAreaNombre
@@ -242,6 +255,7 @@ export default function ProfilePage() {
       values.currentPassword || values.password || values.confirmPassword,
     );
 
+    // Only send area/password fields when they truly changed to avoid accidental updates.
     const payload = {
       nombre: normalizePersonName(values.nombre),
       primerApellido: normalizePersonName(values.primerApellido),
@@ -283,9 +297,11 @@ export default function ProfilePage() {
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1.3fr)_minmax(320px,0.9fr)]">
           <FadeInSection delay={0.05}>
             <SectionCard>
-              <div className="text-sm text-brand-textMuted">Datos personales</div>
+              <div className="text-sm text-brand-textMuted">
+                Datos personales
+              </div>
               <div className="mt-2 text-sm text-brand-textMuted">
-                Estado:{' '}
+                Estado:{" "}
                 <span className="font-semibold text-brand-text">
                   {translateStatus(profile?.status)}
                 </span>
@@ -297,7 +313,7 @@ export default function ProfilePage() {
               >
                 <Input
                   label="Correo"
-                  value={profile?.email ?? ''}
+                  value={profile?.email ?? ""}
                   readOnly
                   maxLength={USER_EMAIL_MAX_LENGTH}
                   hint="No puedes editar tu correo porque es único para tu cuenta."
@@ -309,21 +325,27 @@ export default function ProfilePage() {
                   error={errors.nombre?.message}
                   autoComplete="given-name"
                   maxLength={USER_NAME_MAX_LENGTH}
-                  {...bindPersonNameField('nombre', nombreValue)}
+                  {...bindPersonNameField("nombre", nombreValue)}
                 />
                 <Input
                   label="Primer apellido"
                   error={errors.primerApellido?.message}
                   autoComplete="family-name"
                   maxLength={USER_NAME_MAX_LENGTH}
-                  {...bindPersonNameField('primerApellido', primerApellidoValue)}
+                  {...bindPersonNameField(
+                    "primerApellido",
+                    primerApellidoValue,
+                  )}
                 />
                 <Input
                   label="Segundo apellido"
                   error={errors.segundoApellido?.message}
                   autoComplete="additional-name"
                   maxLength={USER_NAME_MAX_LENGTH}
-                  {...bindPersonNameField('segundoApellido', segundoApellidoValue)}
+                  {...bindPersonNameField(
+                    "segundoApellido",
+                    segundoApellidoValue,
+                  )}
                 />
                 <Input
                   label="Teléfono/extensión"
@@ -337,13 +359,15 @@ export default function ProfilePage() {
                   error={errors.fechaNacimiento?.message}
                   min={minBirthDate}
                   max={maxBirthDate}
-                  {...register('fechaNacimiento')}
+                  {...register("fechaNacimiento")}
                 />
                 <div className="rounded-xl border border-brand-border bg-brand-bg/30 px-4 py-3">
                   <div className="text-xs uppercase tracking-widest text-brand-textMuted">
                     Área actual
                   </div>
-                  <div className="mt-1 font-semibold text-brand-text">{areaLabel}</div>
+                  <div className="mt-1 font-semibold text-brand-text">
+                    {areaLabel}
+                  </div>
                   {hasPendingManualAreaRequest ? (
                     <div className="mt-2 text-xs text-brand-textMuted/80">
                       El administrador asignará tu área en un lapso de 24 horas.
@@ -351,8 +375,8 @@ export default function ProfilePage() {
                   ) : null}
                   {multipleAreasAssigned ? (
                     <div className="mt-2 text-xs text-brand-textMuted/80">
-                      Tu cuenta tiene varias áreas asignadas. Si guardas un cambio
-                      desde aquí, se conservará una sola.
+                      Tu cuenta tiene varias áreas asignadas. Si guardas un
+                      cambio desde aquí, se conservará una sola.
                     </div>
                   ) : null}
                 </div>
@@ -362,10 +386,12 @@ export default function ProfilePage() {
                     error={errors.areaCode?.message}
                     defaultValue=""
                     disabled={areasQuery.isLoading || useCustomArea}
-                    {...register('areaCode')}
+                    {...register("areaCode")}
                   >
                     <option value="">
-                      {areasQuery.isLoading ? 'Cargando áreas...' : 'Selecciona un área'}
+                      {areasQuery.isLoading
+                        ? "Cargando áreas..."
+                        : "Selecciona un área"}
                     </option>
                     {(areasQuery.data ?? []).map((area) => (
                       <option key={area.id} value={area.code}>
@@ -381,20 +407,20 @@ export default function ProfilePage() {
                       checked={useCustomArea}
                       onChange={(event) => {
                         const checked = event.target.checked;
-                        setValue('useCustomArea', checked, {
+                        setValue("useCustomArea", checked, {
                           shouldDirty: true,
                           shouldTouch: true,
                           shouldValidate: true,
                         });
                         if (checked) {
-                          setValue('areaCode', '', {
+                          setValue("areaCode", "", {
                             shouldDirty: true,
                             shouldTouch: true,
                             shouldValidate: true,
                           });
                           return;
                         }
-                        setValue('requestedAreaNombre', '', {
+                        setValue("requestedAreaNombre", "", {
                           shouldDirty: true,
                           shouldTouch: true,
                           shouldValidate: true,
@@ -411,7 +437,7 @@ export default function ProfilePage() {
                       label="Escribe tu área"
                       error={errors.requestedAreaNombre?.message}
                       maxLength={USER_REQUESTED_AREA_MAX_LENGTH}
-                      {...register('requestedAreaNombre')}
+                      {...register("requestedAreaNombre")}
                     />
                   </div>
                 ) : null}
@@ -429,7 +455,7 @@ export default function ProfilePage() {
                   error={errors.currentPassword?.message}
                   maxLength={PASSWORD_MAX_LENGTH}
                   autoComplete="off"
-                  {...register('currentPassword')}
+                  {...register("currentPassword")}
                 />
                 <Input
                   label="Nueva contraseña"
@@ -438,7 +464,7 @@ export default function ProfilePage() {
                   hint={passwordPolicyMessage}
                   maxLength={PASSWORD_MAX_LENGTH}
                   autoComplete="new-password"
-                  {...register('password')}
+                  {...register("password")}
                 />
                 <Input
                   label="Confirmar nueva contraseña"
@@ -446,7 +472,7 @@ export default function ProfilePage() {
                   error={errors.confirmPassword?.message}
                   maxLength={PASSWORD_MAX_LENGTH}
                   autoComplete="new-password"
-                  {...register('confirmPassword')}
+                  {...register("confirmPassword")}
                 />
                 <div className="md:col-span-2 flex justify-end gap-3 pt-2">
                   <Button
@@ -463,9 +489,11 @@ export default function ProfilePage() {
                   </Button>
                   <Button
                     type="submit"
-                    disabled={isSubmitting || mutation.isPending || !profile || !isDirty}
+                    disabled={
+                      isSubmitting || mutation.isPending || !profile || !isDirty
+                    }
                   >
-                    {mutation.isPending ? 'Guardando...' : 'Guardar cambios'}
+                    {mutation.isPending ? "Guardando..." : "Guardar cambios"}
                   </Button>
                 </div>
               </form>
@@ -474,16 +502,22 @@ export default function ProfilePage() {
           <div className="grid gap-6">
             <FadeInSection delay={0.08}>
               <SectionCard>
-                <div className="text-sm text-brand-textMuted">Tareas pendientes</div>
+                <div className="text-sm text-brand-textMuted">
+                  Tareas pendientes
+                </div>
                 <div className="mt-4 grid gap-3 text-sm text-brand-text">
                   <div>
-                    Tienes{' '}
-                    <span className="font-semibold">{tasks?.pendingReview ?? 0}</span>{' '}
+                    Tienes{" "}
+                    <span className="font-semibold">
+                      {tasks?.pendingReview ?? 0}
+                    </span>{" "}
                     documentos pendientes por revisar.
                   </div>
                   <div>
-                    Tienes{' '}
-                    <span className="font-semibold">{tasks?.pendingApprove ?? 0}</span>{' '}
+                    Tienes{" "}
+                    <span className="font-semibold">
+                      {tasks?.pendingApprove ?? 0}
+                    </span>{" "}
                     documentos pendientes por aprobar.
                   </div>
                 </div>
@@ -499,17 +533,19 @@ export default function ProfilePage() {
                           key={key}
                           className="rounded-lg border border-brand-border bg-brand-bg/50 px-3 py-2 text-sm"
                         >
-                          <div className="font-semibold text-brand-text">{label}</div>
+                          <div className="font-semibold text-brand-text">
+                            {label}
+                          </div>
                           <div
                             className={
                               permissions[key as keyof typeof permissions]
-                                ? 'text-brand-accent'
-                                : 'text-ember'
+                                ? "text-brand-accent"
+                                : "text-ember"
                             }
                           >
                             {permissions[key as keyof typeof permissions]
-                              ? 'Activo'
-                              : 'Sin permiso'}
+                              ? "Activo"
+                              : "Sin permiso"}
                           </div>
                         </div>
                       ))

@@ -8,6 +8,7 @@ import { Repository } from 'typeorm';
 import { AreaCode } from './area-code.entity';
 import { Document } from '../documents/document.entity';
 
+// Mutation service for area catalogs with soft/hard delete and dependency cleanup.
 @Injectable()
 export class AreaCodesMutationService {
   constructor(
@@ -18,6 +19,7 @@ export class AreaCodesMutationService {
   ) {}
 
   async create(payload: Partial<AreaCode>) {
+    // Normalize code to keep uniqueness checks deterministic.
     const code = payload.code?.toUpperCase().trim();
     const nombre = payload.nombre?.trim();
     const existing = code
@@ -29,6 +31,7 @@ export class AreaCodesMutationService {
     }
 
     if (existing && !existing.activo) {
+      // Reactivate an existing inactive row instead of creating duplicates.
       existing.nombre = nombre ?? existing.nombre;
       existing.activo = true;
       return this.areaCodeRepo.save(existing);
@@ -49,7 +52,9 @@ export class AreaCodesMutationService {
     }
     if (typeof payload.code === 'string') {
       const nextCode = payload.code.toUpperCase().trim();
-      const existing = await this.areaCodeRepo.findOne({ where: { code: nextCode } });
+      const existing = await this.areaCodeRepo.findOne({
+        where: { code: nextCode },
+      });
       if (existing && existing.id !== entity.id) {
         throw new ConflictException('Ya existe un área con ese código');
       }
@@ -58,8 +63,12 @@ export class AreaCodesMutationService {
     if (typeof payload.nombre === 'string') {
       entity.nombre = payload.nombre.trim();
     }
-    if (typeof payload.activo === 'boolean' && payload.activo !== entity.activo) {
+    if (
+      typeof payload.activo === 'boolean' &&
+      payload.activo !== entity.activo
+    ) {
       if (!payload.activo) {
+        // Detach relations before deactivating to avoid stale area assignments.
         await this.documentRepo
           .createQueryBuilder()
           .update(Document)
@@ -88,6 +97,7 @@ export class AreaCodesMutationService {
       return { success: true, alreadyInactive: true };
     }
 
+    // Soft delete keeps catalog traceability while removing runtime assignments.
     await this.documentRepo
       .createQueryBuilder()
       .update(Document)
@@ -113,6 +123,7 @@ export class AreaCodesMutationService {
       throw new NotFoundException('Área no encontrada');
     }
 
+    // Hard delete requires cleaning references in documents and join tables first.
     await this.documentRepo
       .createQueryBuilder()
       .update(Document)

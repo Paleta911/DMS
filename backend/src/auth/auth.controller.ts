@@ -83,7 +83,10 @@ export class AuthController {
 
   @Post('resend-verification-code')
   @SkipThrottle()
-  resendVerificationCode(@Body() body: VerificationEmailDto, @Req() req: Request) {
+  resendVerificationCode(
+    @Body() body: VerificationEmailDto,
+    @Req() req: Request,
+  ) {
     return this.authService.resendVerificationCode(body, {
       ip: req.ip,
       userAgent: req.headers['user-agent'] as string | undefined,
@@ -99,6 +102,7 @@ export class AuthController {
   @Post('refresh')
   @Throttle(authRefreshThrottle)
   refresh(@Body() body: RefreshTokenDto, @Req() req: Request) {
+    // Refresh is throttled per email/IP to limit token abuse patterns.
     return this.authService.refreshSession(body, {
       ip: req.ip,
       userAgent: req.headers['user-agent'] as string | undefined,
@@ -114,11 +118,12 @@ export class AuthController {
       required: ['email', 'password'],
       properties: {
         email: { type: 'string', example: 'admin@local.com' },
-        password: { type: 'string', example: 'Admin123' },
+        password: { type: 'string', example: '<ADMIN_PASSWORD>' },
       },
     },
   })
   bootstrap(@Body() body: CreateUserDto, @Req() req: Request) {
+    // Bootstrap token gate is optional but recommended for first-run safety.
     const token = getEnv('BOOTSTRAP_TOKEN');
     if (token) {
       const provided = req.headers['x-bootstrap-token'] as string | undefined;

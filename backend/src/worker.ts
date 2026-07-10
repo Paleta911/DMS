@@ -3,6 +3,7 @@ import { AppModule } from './app.module';
 import { writeAppLog } from './common/logging.utils';
 
 async function bootstrapWorker() {
+  // Worker defaults to worker role if not explicitly provided by the environment.
   process.env.APP_RUNTIME_ROLE = process.env.APP_RUNTIME_ROLE ?? 'worker';
 
   const app = await NestFactory.createApplicationContext(AppModule, {
@@ -37,6 +38,7 @@ async function bootstrapWorker() {
     void shutdown('SIGTERM');
   });
 
+  // Keep process alive; actual work is driven by module-level timers/services.
   await new Promise<void>(() => undefined);
 }
 

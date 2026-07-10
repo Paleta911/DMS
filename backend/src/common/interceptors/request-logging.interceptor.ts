@@ -26,6 +26,7 @@ export class RequestLoggingInterceptor implements NestInterceptor {
 
     return next.handle().pipe(
       finalize(() => {
+        // Finalize runs on both success and error responses, ensuring full request accounting.
         const durationMs = Date.now() - start;
         const requestId = getRequestId() ?? 'n/a';
         const method = request.method;

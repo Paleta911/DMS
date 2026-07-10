@@ -17,6 +17,7 @@ export class RegistrationsQueryService {
     limit?: number;
     q?: string;
   }) {
+    // Pagina resultados de registro sobre un query base compartido con export.
     const page = params.page ?? 1;
     const limit = params.limit ?? 20;
     const skip = (page - 1) * limit;
@@ -58,6 +59,7 @@ export class RegistrationsQueryService {
     q?: string;
     maxRows?: number;
   }) {
+    // Limita el volumen exportado para evitar consultas/cargas excesivas.
     const maxRows = Math.min(Math.max(params.maxRows ?? 5000, 1), 10000);
     const items = await this.buildQuery(params).take(maxRows).getMany();
     const headers = [
@@ -104,13 +106,14 @@ export class RegistrationsQueryService {
         .join(','),
     );
 
-    return [headers.map((header) => this.toCsvCell(header)).join(','), ...lines].join('\n');
+    return [
+      headers.map((header) => this.toCsvCell(header)).join(','),
+      ...lines,
+    ].join('\n');
   }
 
-  private buildQuery(params: {
-    status?: UserStatus;
-    q?: string;
-  }) {
+  private buildQuery(params: { status?: UserStatus; q?: string }) {
+    // Reutiliza un unico query builder para filtros de lista y export.
     const q = params.q?.trim();
     const qb = this.userRepo
       .createQueryBuilder('user')
@@ -127,6 +130,7 @@ export class RegistrationsQueryService {
     }
 
     if (q) {
+      // La busqueda textual cubre datos de identidad y datos de area solicitada/asignada.
       qb.andWhere(
         `
           (
@@ -147,6 +151,7 @@ export class RegistrationsQueryService {
   }
 
   private toCsvCell(value: unknown) {
+    // Escapa comillas y saltos de linea para producir CSV valido.
     const normalized =
       value === null || value === undefined
         ? ''
@@ -156,6 +161,7 @@ export class RegistrationsQueryService {
   }
 
   private buildAreaLabel(user: User) {
+    // Prioriza areas asignadas; si no existen, refleja solicitud libre de area.
     const labels = (user.allowedAreaCodes ?? []).map(
       (area) => `${area.code} - ${area.nombre}`,
     );

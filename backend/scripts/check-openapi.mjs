@@ -9,6 +9,7 @@ const snapshotPath = resolve(rootDir, 'openapi', 'openapi.snapshot.json');
 const generatedPath = resolve(rootDir, 'tmp', 'openapi.current.json');
 
 function stableSort(value) {
+  // Deterministic key ordering avoids false diffs caused by object property order.
   if (Array.isArray(value)) {
     return value.map((item) => stableSort(item));
   }
@@ -46,6 +47,7 @@ if (exportResult.status !== 0) {
 const generated = normalizeDocument(generatedPath);
 
 if (writeMode || !existsSync(snapshotPath)) {
+  // Update mode rewrites the tracked snapshot from current generated contract.
   mkdirSync(dirname(snapshotPath), { recursive: true });
   writeFileSync(snapshotPath, generated, 'utf8');
   console.log(`[openapi] snapshot actualizado: ${snapshotPath}`);
@@ -54,10 +56,15 @@ if (writeMode || !existsSync(snapshotPath)) {
 
 const snapshot = normalizeDocument(snapshotPath);
 if (snapshot !== generated) {
-  console.error('[openapi] el contrato exportado no coincide con el snapshot versionado');
+  // Fail CI when API contract changes without snapshot update.
+  console.error(
+    '[openapi] el contrato exportado no coincide con el snapshot versionado',
+  );
   console.error(`[openapi] snapshot: ${snapshotPath}`);
   console.error(`[openapi] generado: ${generatedPath}`);
-  console.error('[openapi] ejecuta `npm run docs:openapi:update` si el cambio es intencional');
+  console.error(
+    '[openapi] ejecuta `npm run docs:openapi:update` si el cambio es intencional',
+  );
   process.exit(1);
 }
 

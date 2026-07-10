@@ -16,6 +16,7 @@ import { AuditLogService } from '../audit-log/audit-log.service';
 import { AreaCodesService } from '../area-codes/area-codes.service';
 import { UserAdminPolicyService } from '../users/user-admin-policy.service';
 
+// Creation service validates self-service permission/area requests and avoids duplicate pending requests.
 @Injectable()
 export class PermissionRequestsCreateService {
   constructor(
@@ -34,6 +35,7 @@ export class PermissionRequestsCreateService {
     ip?: string;
     userAgent?: string;
   }) {
+    // Only regular users can create self-service requests.
     const user = await this.usersService.findById(params.userId);
     if (!user) {
       throw new NotFoundException('Usuario no encontrado');
@@ -43,8 +45,13 @@ export class PermissionRequestsCreateService {
       'permisos',
     );
 
+    // Normalize and deduplicate requested permissions before validation.
     const requestedPermissions = Array.from(
-      new Set(params.permissions.map((permission) => permission?.trim()).filter(Boolean)),
+      new Set(
+        params.permissions
+          .map((permission) => permission?.trim())
+          .filter(Boolean),
+      ),
     ) as PermissionKey[];
     if (requestedPermissions.length === 0) {
       throw new BadRequestException('Selecciona al menos un permiso');
@@ -59,11 +66,14 @@ export class PermissionRequestsCreateService {
       );
     }
 
+    // Prevent creating duplicate pending requests for the same permissions.
     const pendingRequests = await this.requestRepo
       .createQueryBuilder('request')
       .select('request.requestedPermissions', 'requestedPermissions')
       .where('request.userId = :userId', { userId: user.id })
-      .andWhere('request.status = :status', { status: PermissionRequestStatus.Pending })
+      .andWhere('request.status = :status', {
+        status: PermissionRequestStatus.Pending,
+      })
       .andWhere('request.requestType = :requestType', {
         requestType: PermissionRequestType.Permissions,
       })
@@ -73,7 +83,9 @@ export class PermissionRequestsCreateService {
     const pendingPermissions = new Set<PermissionKey>();
     for (const pending of pendingRequests) {
       try {
-        const parsed = JSON.parse(pending.requestedPermissions ?? '[]') as PermissionKey[];
+        const parsed = JSON.parse(
+          pending.requestedPermissions ?? '[]',
+        ) as PermissionKey[];
         parsed.forEach((permission) => pendingPermissions.add(permission));
       } catch {
         continue;
@@ -127,8 +139,13 @@ export class PermissionRequestsCreateService {
       'áreas',
     );
 
+    // Normalize/unique area codes to simplify validation and comparisons.
     const normalizedAreaCodes = Array.from(
-      new Set(params.areaCodes.map((code) => code.toUpperCase().trim()).filter(Boolean)),
+      new Set(
+        params.areaCodes
+          .map((code) => code.toUpperCase().trim())
+          .filter(Boolean),
+      ),
     );
     if (normalizedAreaCodes.length === 0) {
       throw new BadRequestException('Selecciona al menos un área');
@@ -136,9 +153,13 @@ export class PermissionRequestsCreateService {
 
     const allAreas = await this.areaCodesService.findActiveList();
     const validCodes = new Set(allAreas.map((area) => area.code));
-    const invalidCodes = normalizedAreaCodes.filter((code) => !validCodes.has(code));
+    const invalidCodes = normalizedAreaCodes.filter(
+      (code) => !validCodes.has(code),
+    );
     if (invalidCodes.length > 0) {
-      throw new BadRequestException(`Áreas inválidas: ${invalidCodes.join(', ')}`);
+      throw new BadRequestException(
+        `Áreas inválidas: ${invalidCodes.join(', ')}`,
+      );
     }
     const userWithAreas = await this.usersService.findByIdWithAreas(user.id);
     const assignedCodes = new Set(
@@ -155,11 +176,14 @@ export class PermissionRequestsCreateService {
       );
     }
 
+    // Avoid duplicate pending area requests for the same user.
     const pendingAreaRequests = await this.requestRepo
       .createQueryBuilder('request')
       .select('request.requestedAreaCodes', 'requestedAreaCodes')
       .where('request.userId = :userId', { userId: user.id })
-      .andWhere('request.status = :status', { status: PermissionRequestStatus.Pending })
+      .andWhere('request.status = :status', {
+        status: PermissionRequestStatus.Pending,
+      })
       .andWhere('request.requestType = :requestType', {
         requestType: PermissionRequestType.Areas,
       })
@@ -169,8 +193,12 @@ export class PermissionRequestsCreateService {
     const pendingAreaCodes = new Set<string>();
     for (const pending of pendingAreaRequests) {
       try {
-        const parsed = JSON.parse(pending.requestedAreaCodes ?? '[]') as string[];
-        parsed.forEach((code) => pendingAreaCodes.add(code.toUpperCase().trim()));
+        const parsed = JSON.parse(
+          pending.requestedAreaCodes ?? '[]',
+        ) as string[];
+        parsed.forEach((code) =>
+          pendingAreaCodes.add(code.toUpperCase().trim()),
+        );
       } catch {
         continue;
       }
@@ -199,7 +227,10 @@ export class PermissionRequestsCreateService {
       action: 'PERMISSION_REQUEST_CREATED',
       resourceType: 'permission_request',
       resourceId: saved.id,
-      meta: { requestType: PermissionRequestType.Areas, areaCodes: normalizedAreaCodes },
+      meta: {
+        requestType: PermissionRequestType.Areas,
+        areaCodes: normalizedAreaCodes,
+      },
       ip: params.ip,
       userAgent: params.userAgent,
     });

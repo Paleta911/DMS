@@ -1,1 +1,2 @@
-export { default } from './UsersPage';
+// Backward-compatible route/component alias.
+export { default } from "./UsersPage";

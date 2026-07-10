@@ -1,10 +1,11 @@
-import { fireEvent, screen, waitFor, within } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AuthUser } from '../../types/auth';
-import type { PermissionRequest } from '../../types/permissions';
-import { renderWithProviders } from '../../test/test-utils';
-import PermissionRequestsPage from './PermissionRequestsPage';
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { AuthUser } from "../../types/auth";
+import type { PermissionRequest } from "../../types/permissions";
+import { renderWithProviders } from "../../test/test-utils";
+import PermissionRequestsPage from "./PermissionRequestsPage";
 
+// Reune estado simulado de auth, notificaciones y acciones administrativas.
 const mocks = vi.hoisted(() => ({
   auth: {
     user: null as AuthUser | null,
@@ -18,7 +19,7 @@ const mocks = vi.hoisted(() => ({
   },
 }));
 
-vi.mock('../../auth/AuthContext', () => ({
+vi.mock("../../auth/AuthContext", () => ({
   useAuth: () => ({
     user: mocks.auth.user,
     token: null,
@@ -29,16 +30,17 @@ vi.mock('../../auth/AuthContext', () => ({
   }),
 }));
 
-vi.mock('../../components/ToastProvider', () => ({
+vi.mock("../../components/ToastProvider", () => ({
   useToast: () => ({
     notify: mocks.notify,
   }),
 }));
 
-vi.mock('../../api/endpoints/permissionRequests', () => mocks.api);
+vi.mock("../../api/endpoints/permissionRequests", () => mocks.api);
 
-describe('PermissionRequestsPage', () => {
+describe("PermissionRequestsPage", () => {
   beforeEach(() => {
+    // Normaliza storage y mocks para que cada test sea independiente.
     window.localStorage.clear();
     mocks.notify.mockReset();
     mocks.api.adminPermissionRequestsList.mockReset();
@@ -48,26 +50,26 @@ describe('PermissionRequestsPage', () => {
     mocks.auth.isAdmin = true;
     mocks.auth.user = {
       id: 1,
-      email: 'admin@local.com',
-      role: 'admin',
+      email: "admin@local.com",
+      role: "admin",
       isSuperAdmin: true,
     };
 
     const items: PermissionRequest[] = [
       {
         id: 11,
-        requestedPermissions: JSON.stringify(['UPLOAD', 'REVIEW']),
-        requestType: 'PERMISSIONS',
-        status: 'PENDING',
-        comment: 'Necesario para operar',
-        user: { id: 7, email: 'sus@bsm.com.mx' },
+        requestedPermissions: JSON.stringify(["UPLOAD", "REVIEW"]),
+        requestType: "PERMISSIONS",
+        status: "PENDING",
+        comment: "Necesario para operar",
+        user: { id: 7, email: "sus@bsm.com.mx" },
       },
       {
         id: 12,
-        requestedPermissions: JSON.stringify(['READ']),
-        requestType: 'PERMISSIONS',
-        status: 'APPROVED',
-        user: { id: 8, email: 'aprobado@bsm.com.mx' },
+        requestedPermissions: JSON.stringify(["READ"]),
+        requestType: "PERMISSIONS",
+        status: "APPROVED",
+        user: { id: 8, email: "aprobado@bsm.com.mx" },
       },
     ];
 
@@ -81,65 +83,85 @@ describe('PermissionRequestsPage', () => {
     mocks.api.adminPermissionRequestReject.mockResolvedValue({});
   });
 
-  it('muestra acceso denegado si el usuario no es admin', () => {
+  it("muestra acceso denegado si el usuario no es admin", () => {
     mocks.auth.isAdmin = false;
     mocks.auth.user = {
       id: 8,
-      email: 'user@bsm.com.mx',
-      role: 'user',
+      email: "user@bsm.com.mx",
+      role: "user",
     };
 
     renderWithProviders(<PermissionRequestsPage />);
 
-    expect(screen.getByText('Acceso denegado')).toBeInTheDocument();
+    expect(screen.getByText("Acceso denegado")).toBeInTheDocument();
   });
 
-  it('aprueba una solicitud pendiente', async () => {
+  it("aprueba una solicitud pendiente", async () => {
+    // Cubre la ruta feliz de revision y aprobacion inmediata.
     renderWithProviders(<PermissionRequestsPage />);
 
-    expect((await screen.findAllByText('sus@bsm.com.mx')).length).toBeGreaterThan(0);
-    expect(await screen.findByText('Subir documentos, Revisar documentos')).toBeInTheDocument();
+    expect(
+      (await screen.findAllByText("sus@bsm.com.mx")).length,
+    ).toBeGreaterThan(0);
+    expect(
+      await screen.findByText("Subir documentos, Revisar documentos"),
+    ).toBeInTheDocument();
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'Aprobar' })[0]);
+    fireEvent.click(screen.getAllByRole("button", { name: "Aprobar" })[0]);
 
     await waitFor(() => {
       expect(mocks.api.adminPermissionRequestApprove).toHaveBeenCalledWith(11);
     });
 
     await waitFor(() => {
-      expect(mocks.notify).toHaveBeenCalledWith('Solicitud aprobada', 'success');
+      expect(mocks.notify).toHaveBeenCalledWith(
+        "Solicitud aprobada",
+        "success",
+      );
     });
   });
 
-  it('rechaza una solicitud pendiente con motivo', async () => {
+  it("rechaza una solicitud pendiente con motivo", async () => {
     renderWithProviders(<PermissionRequestsPage />);
 
-    expect((await screen.findAllByText('sus@bsm.com.mx')).length).toBeGreaterThan(0);
+    expect(
+      (await screen.findAllByText("sus@bsm.com.mx")).length,
+    ).toBeGreaterThan(0);
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'Rechazar' })[0]);
-    fireEvent.change(screen.getByLabelText('Motivo (opcional)'), {
-      target: { value: 'Falta autorización interna' },
+    fireEvent.click(screen.getAllByRole("button", { name: "Rechazar" })[0]);
+    fireEvent.change(screen.getByLabelText("Motivo (opcional)"), {
+      target: { value: "Falta autorización interna" },
     });
-    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Rechazar' }));
+    fireEvent.click(
+      within(screen.getByRole("dialog")).getByRole("button", {
+        name: "Rechazar",
+      }),
+    );
 
     await waitFor(() => {
-      expect(mocks.api.adminPermissionRequestReject).toHaveBeenCalledWith(11, 'Falta autorización interna');
+      expect(mocks.api.adminPermissionRequestReject).toHaveBeenCalledWith(
+        11,
+        "Falta autorización interna",
+      );
     });
 
     await waitFor(() => {
-      expect(mocks.notify).toHaveBeenCalledWith('Solicitud rechazada', 'success');
+      expect(mocks.notify).toHaveBeenCalledWith(
+        "Solicitud rechazada",
+        "success",
+      );
     });
   });
 
-  it('recupera filtros guardados por usuario', async () => {
+  it("recupera filtros guardados por usuario", async () => {
     window.localStorage.setItem(
-      'admin-permission-request-filters:admin@local.com',
+      "admin-permission-request-filters:admin@local.com",
       JSON.stringify({
         lastUsed: {
-          status: 'APPROVED',
-          typeFilter: 'AREAS',
-          userFilter: 'aprobado@bsm.com.mx',
-          detailFilter: 'READ',
+          status: "APPROVED",
+          typeFilter: "AREAS",
+          userFilter: "aprobado@bsm.com.mx",
+          detailFilter: "READ",
           page: 2,
           limit: 50,
         },
@@ -151,19 +173,19 @@ describe('PermissionRequestsPage', () => {
 
     await waitFor(() => {
       expect(mocks.api.adminPermissionRequestsList).toHaveBeenCalledWith({
-        status: 'APPROVED',
-        type: 'AREAS',
-        user: 'aprobado@bsm.com.mx',
-        detail: 'READ',
+        status: "APPROVED",
+        type: "AREAS",
+        user: "aprobado@bsm.com.mx",
+        detail: "READ",
         page: 2,
         limit: 50,
       });
     });
 
-    expect(screen.getByLabelText('Estado')).toHaveValue('APPROVED');
-    expect(screen.getByLabelText('Tipo')).toHaveValue('AREAS');
-    expect(screen.getByDisplayValue('aprobado@bsm.com.mx')).toBeInTheDocument();
-    expect(screen.getByDisplayValue('READ')).toBeInTheDocument();
-    expect(screen.getByLabelText('Límite')).toHaveValue('50');
+    expect(screen.getByLabelText("Estado")).toHaveValue("APPROVED");
+    expect(screen.getByLabelText("Tipo")).toHaveValue("AREAS");
+    expect(screen.getByDisplayValue("aprobado@bsm.com.mx")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("READ")).toBeInTheDocument();
+    expect(screen.getByLabelText("Límite")).toHaveValue("50");
   });
 });

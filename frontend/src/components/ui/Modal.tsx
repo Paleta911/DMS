@@ -1,9 +1,10 @@
-import { useEffect, useId, useRef } from 'react';
-import type { ReactNode } from 'react';
-import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
-import { X } from 'lucide-react';
-import { FAST_TRANSITION } from './Motion';
+import { useEffect, useId, useRef } from "react";
+import type { ReactNode } from "react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { X } from "lucide-react";
+import { FAST_TRANSITION } from "./Motion";
 
+// Accessible modal dialog with focus trap, escape handling, and focus restoration.
 export function Modal({
   open,
   title,
@@ -29,14 +30,18 @@ export function Modal({
     if (!open) {
       return;
     }
-    previousFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    previousFocusRef.current =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+    // Keep keyboard navigation trapped inside dialog while open.
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
+      if (event.key === "Escape") {
         onCloseRef.current();
         return;
       }
 
-      if (event.key !== 'Tab' || !dialogRef.current) {
+      if (event.key !== "Tab" || !dialogRef.current) {
         return;
       }
 
@@ -61,10 +66,10 @@ export function Modal({
         first.focus();
       }
     };
-    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener("keydown", onKeyDown);
     dialogRef.current?.focus();
     return () => {
-      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener("keydown", onKeyDown);
       previousFocusRef.current?.focus();
     };
   }, [open]);
@@ -87,21 +92,20 @@ export function Modal({
             aria-labelledby={titleId}
             tabIndex={-1}
             initial={
-              reduceMotion
-                ? { opacity: 1 }
-                : { opacity: 0, y: 12, scale: 0.98 }
+              reduceMotion ? { opacity: 1 } : { opacity: 0, y: 12, scale: 0.98 }
             }
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={
-              reduceMotion
-                ? { opacity: 0 }
-                : { opacity: 0, y: 8, scale: 0.98 }
+              reduceMotion ? { opacity: 0 } : { opacity: 0, y: 8, scale: 0.98 }
             }
             transition={FAST_TRANSITION}
             onClick={(event) => event.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b border-brand-border px-4 py-3 sm:px-6 sm:py-4">
-              <div id={titleId} className="font-display text-base text-ink sm:text-lg">
+              <div
+                id={titleId}
+                className="font-display text-base text-ink sm:text-lg"
+              >
                 {title}
               </div>
               <button

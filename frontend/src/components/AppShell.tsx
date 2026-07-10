@@ -64,11 +64,13 @@ export function AppShell() {
   });
 
   useEffect(() => {
+    // Close mobile drawer when route changes to avoid stale overlay state.
     setSidebarOpen(false);
   }, [location.pathname]);
 
   useEffect(() => {
     if (!sidebarOpen) return;
+    // Prevent background scroll when mobile sidebar is open.
     const original = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
@@ -331,23 +333,18 @@ export function AppShell() {
             </div>
           </header>
           {showHealth ? (
+            // Dev-only health widget to surface backend/infra status quickly.
             <div
               role="status"
               aria-live="polite"
               className="card flex flex-wrap items-center gap-3 px-4 py-3 text-xs text-brand-textMuted"
             >
-              <span className="text-xs uppercase tracking-[0.2em] text-brand-textMuted">
-                Backend
-              </span>
               <Pill tone={healthQuery.data?.db === "up" ? "DB_UP" : "DB_DOWN"}>
                 DB: {healthQuery.data?.db ?? "-"}
               </Pill>
               <Pill tone={healthQuery.data?.es === "up" ? "ES_UP" : "ES_DOWN"}>
                 ES: {healthQuery.data?.es ?? "-"}
               </Pill>
-              <span className="text-xs text-brand-textMuted">
-                idSolicitud: {healthQuery.data?.requestId ?? "-"}
-              </span>
             </div>
           ) : null}
           <AnimatePresence mode="wait" initial={false}>

@@ -11,6 +11,7 @@ import { PermissionRequestsCreateService } from './permission-requests-create.se
 import { PermissionRequestsQueryService } from './permission-requests-query.service';
 import { PermissionRequestsReviewService } from './permission-requests-review.service';
 
+// Permissions module bundles request lifecycle: creation, admin review, querying, and audit integration.
 @Module({
   imports: [
     TypeOrmModule.forFeature([PermissionRequest]),
@@ -24,6 +25,9 @@ import { PermissionRequestsReviewService } from './permission-requests-review.se
     PermissionRequestsQueryService,
     PermissionRequestsReviewService,
   ],
-  controllers: [PermissionRequestsController, AdminPermissionRequestsController],
+  controllers: [
+    PermissionRequestsController,
+    AdminPermissionRequestsController,
+  ],
 })
 export class PermissionsModule {}

@@ -1,11 +1,4 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Patch,
-  Req,
-  UseGuards,
-} from '@nestjs/common';
+import { Body, Controller, Get, Patch, Req, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { AuditLogService } from '../audit-log/audit-log.service';
@@ -16,6 +9,8 @@ import { UserRole } from '../users/user-role.enum';
 import { DocumentVisibilityService } from './document-visibility.service';
 import { UpdateDocumentVisibilityDto } from './dto/update-document-visibility.dto';
 
+// Document visibility admin-only controller: GET current policy, PATCH to update which statuses users can see
+// Enforces admin-only access; logs policy changes to audit trail
 @ApiTags('document-visibility')
 @Controller('document-visibility')
 export class DocumentVisibilityController {
@@ -24,6 +19,7 @@ export class DocumentVisibilityController {
     private readonly auditLogService: AuditLogService,
   ) {}
 
+  // Get current visibility policy (admin only); returns boolean flags per document status
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.Admin)
   @Get()
@@ -32,6 +28,7 @@ export class DocumentVisibilityController {
     return this.documentVisibilityService.getPolicy();
   }
 
+  // Update visibility policy (admin only); audit logs policy changes
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.Admin)
   @Patch()

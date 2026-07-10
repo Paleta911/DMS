@@ -26,6 +26,7 @@ export class AuthLoginService {
   ) {}
 
   async login(dto: LoginDto, meta?: { ip?: string; userAgent?: string }) {
+    // Hard-stop login for permanently removed accounts before password checks.
     const permanentlyDeletedRecord =
       await this.findPermanentlyDeletedRecordByEmail(dto.email);
     if (permanentlyDeletedRecord) {
@@ -35,7 +36,8 @@ export class AuthLoginService {
         meta: {
           email: dto.email,
           reason: 'permanently_deleted_account',
-          deletedAt: permanentlyDeletedRecord.deletedAt?.toISOString?.() ?? null,
+          deletedAt:
+            permanentlyDeletedRecord.deletedAt?.toISOString?.() ?? null,
         },
         ip: meta?.ip,
         userAgent: meta?.userAgent,
@@ -71,7 +73,8 @@ export class AuthLoginService {
 
     const isValid = await bcrypt.compare(dto.password, user.passwordHash);
     if (!isValid) {
-      const updatedUser = await this.usersService.recordFailedLoginAttempt(user);
+      const updatedUser =
+        await this.usersService.recordFailedLoginAttempt(user);
       await this.auditLogService.log({
         userId: user.id,
         action: 'AUTH_LOGIN_FAIL',
@@ -79,7 +82,8 @@ export class AuthLoginService {
         meta: {
           email: dto.email,
           failedLoginAttempts: updatedUser.failedLoginAttempts,
-          loginBlockedUntil: updatedUser.loginBlockedUntil?.toISOString() ?? null,
+          loginBlockedUntil:
+            updatedUser.loginBlockedUntil?.toISOString() ?? null,
         },
         ip: meta?.ip,
         userAgent: meta?.userAgent,
@@ -144,9 +148,12 @@ export class AuthLoginService {
   ) {
     let payload: JwtPayload;
     try {
-      payload = await this.jwtService.verifyAsync<JwtPayload>(dto.refreshToken, {
-        secret: this.getRefreshTokenSecret(),
-      });
+      payload = await this.jwtService.verifyAsync<JwtPayload>(
+        dto.refreshToken,
+        {
+          secret: this.getRefreshTokenSecret(),
+        },
+      );
     } catch {
       await this.auditLogService.log({
         action: 'AUTH_REFRESH_FAIL',
@@ -155,7 +162,9 @@ export class AuthLoginService {
         ip: meta?.ip,
         userAgent: meta?.userAgent,
       });
-      throw new UnauthorizedException('Sesion expirada. Inicia sesión nuevamente');
+      throw new UnauthorizedException(
+        'Sesion expirada. Inicia sesión nuevamente',
+      );
     }
 
     const user = await this.usersService.findById(payload.sub);
@@ -177,7 +186,9 @@ export class AuthLoginService {
         });
         throw this.buildAccountRemovedException();
       }
-      throw new UnauthorizedException('Sesion expirada. Inicia sesión nuevamente');
+      throw new UnauthorizedException(
+        'Sesion expirada. Inicia sesión nuevamente',
+      );
     }
 
     if (user.status === UserStatus.Deleted) {
@@ -239,6 +250,7 @@ export class AuthLoginService {
     },
     meta?: { ip?: string; userAgent?: string },
   ) {
+    // Block window is enforced on both login and refresh to prevent bypass.
     const blockedUntil = user.loginBlockedUntil;
     if (!blockedUntil) {
       return;
@@ -311,10 +323,12 @@ export class AuthLoginService {
   }
 
   private async signAuthTokens(payload: JwtPayload) {
+    // Refresh token can use an independent secret/ttl when configured.
     const accessToken = await this.jwtService.signAsync(payload);
     const refreshToken = await this.jwtService.signAsync(payload, {
       secret: this.getRefreshTokenSecret(),
-      expiresIn: (getEnv('JWT_REFRESH_EXPIRES_IN', '7d') ?? '7d') as StringValue,
+      expiresIn: (getEnv('JWT_REFRESH_EXPIRES_IN', '7d') ??
+        '7d') as StringValue,
     });
     return {
       accessToken,

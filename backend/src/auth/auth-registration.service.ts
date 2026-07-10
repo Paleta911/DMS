@@ -21,6 +21,8 @@ import {
   normalizeRequestedAreaNombre,
 } from '../users/user-profile.rules';
 
+// Service implements user registration workflow: validates email domain, permanently deleted accounts,
+// profile data normalization, area/permission assignment, and audit trail capture
 @Injectable()
 export class AuthRegistrationService {
   constructor(
@@ -31,6 +33,7 @@ export class AuthRegistrationService {
     private readonly areaCodesService: AreaCodesService,
   ) {}
 
+  // Register new user with validation: email domain check, permanent deletion check, profile normalization, area assignment
   async register(
     dto: RegisterDto,
     meta?: { actorId?: number; ip?: string; userAgent?: string },
@@ -49,7 +52,9 @@ export class AuthRegistrationService {
     }
     const existing = await this.usersService.findByEmail(dto.email);
     if (existing) {
-      throw new BadRequestException('Este correo ya está vinculado a una cuenta');
+      throw new BadRequestException(
+        'Este correo ya está vinculado a una cuenta',
+      );
     }
 
     const nombre = normalizePersonName(dto.nombre);
@@ -120,7 +125,7 @@ export class AuthRegistrationService {
       status,
       verifiedAt: isAdmin ? new Date() : null,
       approvedAt,
-      approvedById: isAdmin ? actor?.id ?? null : null,
+      approvedById: isAdmin ? (actor?.id ?? null) : null,
       requestedAreaNombre: !isAdmin ? requestedAreaNombre : null,
       permissions,
     });
@@ -163,14 +168,18 @@ export class AuthRegistrationService {
     return this.usersService.toSafeUser(user);
   }
 
-  private async resolveSelectedArea(areaCode: string | undefined, isAdmin: boolean) {
+  private async resolveSelectedArea(
+    areaCode: string | undefined,
+    isAdmin: boolean,
+  ) {
     const normalizedAreaCode = areaCode?.trim().toUpperCase() ?? '';
     if (!normalizedAreaCode) {
       return null;
     }
 
     const activeAreas = await this.areaCodesService.findActiveList();
-    const selectedArea = activeAreas.find((area) => area.code === normalizedAreaCode) ?? null;
+    const selectedArea =
+      activeAreas.find((area) => area.code === normalizedAreaCode) ?? null;
 
     if (!selectedArea && !isAdmin) {
       throw new BadRequestException('Área inválida');
@@ -184,11 +193,17 @@ export class AuthRegistrationService {
     const permanentlyDeletedRecord =
       await this.findPermanentlyDeletedRecordByEmail(dto.email);
     if (permanentlyDeletedRecord) {
-      throw new BadRequestException('Este correo fue eliminado por el administrador');
+      throw new BadRequestException(
+        'Este correo fue eliminado por el administrador',
+      );
     }
     const existing = await this.usersService.findByEmailWithPassword(dto.email);
     if (hasAdmin) {
-      if (!existing || existing.role !== UserRole.Admin || !existing.isSuperAdmin) {
+      if (
+        !existing ||
+        existing.role !== UserRole.Admin ||
+        !existing.isSuperAdmin
+      ) {
         throw new ConflictException('Ya existe un admin');
       }
 
@@ -215,7 +230,9 @@ export class AuthRegistrationService {
     }
 
     if (existing) {
-      throw new BadRequestException('Este correo ya está vinculado a una cuenta');
+      throw new BadRequestException(
+        'Este correo ya está vinculado a una cuenta',
+      );
     }
 
     const passwordHash = await bcrypt.hash(dto.password, 10);

@@ -6,7 +6,10 @@ import {
   PermissionRequestType,
 } from './permission-request.entity';
 
-function createPendingAreaQueryBuilder(rawRows: Array<{ requestedAreaCodes: string | null }>) {
+// Unit tests for key permission-request business rules (duplicate prevention and partial area approval).
+function createPendingAreaQueryBuilder(
+  rawRows: Array<{ requestedAreaCodes: string | null }>,
+) {
   return {
     select: jest.fn().mockReturnThis(),
     where: jest.fn().mockReturnThis(),
@@ -45,7 +48,9 @@ describe('Permission request flows', () => {
       } as any,
       { log: jest.fn() } as any,
       {
-        findActiveList: jest.fn().mockResolvedValue([{ code: 'FA' }, { code: 'RC' }]),
+        findActiveList: jest
+          .fn()
+          .mockResolvedValue([{ code: 'FA' }, { code: 'RC' }]),
       } as any,
       {
         assertCanCreateSelfServiceRequest: jest.fn(),
@@ -58,7 +63,9 @@ describe('Permission request flows', () => {
         areaCodes: ['FA'],
       }),
     ).rejects.toThrow(
-      new BadRequestException('Ya tienes solicitudes pendientes para áreas: FA'),
+      new BadRequestException(
+        'Ya tienes solicitudes pendientes para áreas: FA',
+      ),
     );
   });
 
@@ -80,7 +87,9 @@ describe('Permission request flows', () => {
       getRepository: jest.fn().mockReturnValue(transactionalRepo),
     };
     const dataSource = {
-      transaction: jest.fn().mockImplementation(async (callback) => callback(manager)),
+      transaction: jest
+        .fn()
+        .mockImplementation(async (callback) => callback(manager)),
     };
     const setAllowedAreas = jest.fn();
     const auditLog = jest.fn();
@@ -98,7 +107,9 @@ describe('Permission request flows', () => {
       } as any,
       { log: auditLog } as any,
       {
-        findActiveList: jest.fn().mockResolvedValue([{ code: 'FA' }, { code: 'RC' }]),
+        findActiveList: jest
+          .fn()
+          .mockResolvedValue([{ code: 'FA' }, { code: 'RC' }]),
       } as any,
       {
         assertTargetIsMutableByAdmin: jest.fn(),

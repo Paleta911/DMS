@@ -9,6 +9,7 @@ export function requestIdMiddleware(
   res: Response,
   next: NextFunction,
 ) {
+  // Reutiliza el id entrante para trazabilidad distribuida o genera uno nuevo.
   const headerValue = req.headers['x-request-id'];
   const requestId =
     typeof headerValue === 'string' && headerValue.length > 0
@@ -18,5 +19,6 @@ export function requestIdMiddleware(
   req.requestId = requestId;
   res.setHeader('x-request-id', requestId);
 
+  // Propaga el requestId al contexto async para logs/metricas correlacionados.
   runWithRequestContext({ requestId }, next);
 }

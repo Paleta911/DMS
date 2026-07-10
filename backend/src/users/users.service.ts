@@ -41,6 +41,7 @@ export class UsersService {
     recent = false,
     filters?: { status?: string; role?: string; areaState?: string },
   ) {
+    // Read operations are delegated to query service to keep this facade thin.
     return this.usersQueryService.searchUsers(query, limit, recent, filters);
   }
 
@@ -130,6 +131,7 @@ export class UsersService {
     ip?: string;
     userAgent?: string;
   }) {
+    // Destructive lifecycle actions are centralized for auditing and policy checks.
     return this.userLifecycleService.permanentlyDeleteUser(params);
   }
 }

@@ -8,6 +8,8 @@ import { Repository } from 'typeorm';
 import { Category } from './category.entity';
 import { Document } from '../documents/document.entity';
 
+// Mutation service handles category CRUD operations: create with soft-delete recovery, update, and hard delete
+// Enforces unique category names and maintains referential integrity with documents
 @Injectable()
 export class CategoriesMutationService {
   constructor(
@@ -17,6 +19,7 @@ export class CategoriesMutationService {
     private readonly documentRepo: Repository<Document>,
   ) {}
 
+  // Create new category or reactivate soft-deleted one; prevents duplicate active names
   async create(nombre: string) {
     const normalizedName = nombre.trim();
     const existing = await this.categoryRepo.findOne({
@@ -56,7 +59,10 @@ export class CategoriesMutationService {
       category.nombre = normalizedName;
     }
 
-    if (typeof params.activo === 'boolean' && params.activo !== category.activo) {
+    if (
+      typeof params.activo === 'boolean' &&
+      params.activo !== category.activo
+    ) {
       if (!params.activo) {
         await this.documentRepo
           .createQueryBuilder()

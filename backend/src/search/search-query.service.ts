@@ -1,7 +1,4 @@
-import {
-  Injectable,
-  ServiceUnavailableException,
-} from '@nestjs/common';
+import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Brackets, In, Repository } from 'typeorm';
 import { Document } from '../documents/document.entity';
@@ -57,6 +54,7 @@ export class SearchQueryService {
     page: number;
     limit: number;
   }> {
+    // Explicit fallback mode bypasses Elastic checks entirely.
     if (this.searchEngineService.isFallbackMode()) {
       writeAppLog({
         level: 'warn',
@@ -95,6 +93,7 @@ export class SearchQueryService {
       await this.documentVisibilityService.getVisibleStatusesForActor(
         params.includeHiddenStatuses,
       );
+    // Visibility policy is enforced before hitting Elastic to avoid leaking hidden states.
     if (!params.includeHiddenStatuses && visibleStatuses.length === 0) {
       return {
         engine: 'elastic',
@@ -208,7 +207,10 @@ export class SearchQueryService {
       return {
         engine: 'elastic',
         items: hits.slice(offset, offset + limit),
-        total: hits.length < candidateSize ? hits.length : response.hits.total ?? 0,
+        total:
+          hits.length < candidateSize
+            ? hits.length
+            : (response.hits.total ?? 0),
         page,
         limit,
       };
@@ -251,6 +253,7 @@ export class SearchQueryService {
     page: number;
     limit: number;
   }> {
+    // SQL fallback mirrors Elastic filters so behavior remains consistent when ES is down.
     const page = params.page ?? 1;
     const limit = params.limit ?? 20;
     const skip = (page - 1) * limit;
@@ -321,7 +324,10 @@ export class SearchQueryService {
       .select('document.id')
       .distinct(true)
       .getCount();
-    const { entities: documents } = await qb.skip(skip).take(limit).getRawAndEntities();
+    const { entities: documents } = await qb
+      .skip(skip)
+      .take(limit)
+      .getRawAndEntities();
 
     const ids = documents.map((document) => document.id);
     const latestByDocument = new Map<number, Version>();
@@ -445,16 +451,16 @@ export class SearchQueryService {
     qb.andWhere(
       new Brackets((searchQb) => {
         searchQb
-          .where('LOWER(COALESCE(document.codigo, \'\')) LIKE :likeQuery')
+          .where("LOWER(COALESCE(document.codigo, '')) LIKE :likeQuery")
           .orWhere('LOWER(document.nombre) LIKE :likeQuery')
           .orWhere(
-            'LOWER(COALESCE(latestVersion.originalName, \'\')) LIKE :likeQuery',
+            "LOWER(COALESCE(latestVersion.originalName, '')) LIKE :likeQuery",
           )
           .orWhere(
-            'LOWER(COALESCE(latestVersion.comentario, \'\')) LIKE :likeQuery',
+            "LOWER(COALESCE(latestVersion.comentario, '')) LIKE :likeQuery",
           )
           .orWhere(
-            'LOWER(COALESCE(latestVersion.contentText, \'\')) LIKE :likeQuery',
+            "LOWER(COALESCE(latestVersion.contentText, '')) LIKE :likeQuery",
           );
       }),
     );
@@ -487,10 +493,12 @@ export class SearchQueryService {
       where: { id: In(ids) },
       relations: ['category', 'documentType', 'areaCode'],
     });
-    const documentsById = new Map(documents.map((document) => [document.id, document]));
+    const documentsById = new Map(
+      documents.map((document) => [document.id, document]),
+    );
 
-    const reconciledHits: Array<Record<string, unknown> | null> = hits
-      .map((hit) => {
+    const reconciledHits: Array<Record<string, unknown> | null> = hits.map(
+      (hit) => {
         const document = documentsById.get(Number(hit.documentId));
         if (!document) {
           return null;
@@ -503,7 +511,10 @@ export class SearchQueryService {
           return null;
         }
 
-        if (params.requestedStatus && document.status !== params.requestedStatus) {
+        if (
+          params.requestedStatus &&
+          document.status !== params.requestedStatus
+        ) {
           return null;
         }
 
@@ -523,7 +534,8 @@ export class SearchQueryService {
           createdAt: document.createdAt,
           updatedAt: document.updatedAt,
         };
-      });
+      },
+    );
 
     return reconciledHits.filter(
       (hit): hit is Record<string, unknown> => hit !== null,
