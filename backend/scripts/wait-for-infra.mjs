@@ -17,13 +17,14 @@ const timeoutMs = (() => {
 })();
 
 const hasModeFlag = args.has('--db') || args.has('--search');
+// Default behavior waits for DB; search is opt-in unless explicitly requested.
 const waitDb = args.has('--db') || !hasModeFlag;
 const waitSearch = args.has('--search');
 
 async function main() {
   if (waitDb) {
     console.log(
-      `[deps:wait] SQL ${env.dbHost}:${env.dbPort} user=${env.dbUser} db=${env.dbName}`,
+      `[deps:wait] SQL ${env.dbHost}:${env.dbPort} user=${env.dbUser} db=master`,
     );
     const db = await waitForDependency({
       label: `sqlserver ${env.dbHost}:${env.dbPort}`,
@@ -34,7 +35,7 @@ async function main() {
           port: env.dbPort,
           user: env.dbUser,
           password: env.dbPass,
-          database: env.dbName,
+          database: 'master',
           encrypt: env.dbEncrypt,
           trustServerCertificate: env.dbTrustCert,
         }),

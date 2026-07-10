@@ -18,7 +18,10 @@ export function getRequiredEnv(name: string) {
 }
 
 export function assertSecurityConfig() {
-  const nodeEnv = (getEnv('NODE_ENV', 'development') ?? 'development').toLowerCase();
+  // These hard checks only apply in production to keep local development friction low.
+  const nodeEnv = (
+    getEnv('NODE_ENV', 'development') ?? 'development'
+  ).toLowerCase();
   if (nodeEnv !== 'production') {
     return;
   }
@@ -63,9 +66,11 @@ export function assertSecurityConfig() {
     throw new Error('BOOTSTRAP_TOKEN inseguro en produccion');
   }
 
-  const emailMode = (getEnv('EMAIL_MODE', 'console') ?? 'console').toLowerCase();
+  const emailMode = (
+    getEnv('EMAIL_MODE', 'console') ?? 'console'
+  ).toLowerCase();
   const loginBlockAfter = Number(getEnv('AUTH_LOGIN_BLOCK_AFTER', '5'));
-  const loginBlockSec = Number(getEnv('AUTH_LOGIN_BLOCK_SEC', '900'));
+  const loginBlockSec = Number(getEnv('AUTH_LOGIN_BLOCK_SEC', '300'));
   if (!Number.isFinite(loginBlockAfter) || loginBlockAfter < 3) {
     throw new Error('AUTH_LOGIN_BLOCK_AFTER inseguro en produccion');
   }
@@ -74,6 +79,7 @@ export function assertSecurityConfig() {
   }
 
   if (emailMode !== 'smtp') {
+    // Production must use SMTP to avoid silently "sending" emails only to logs.
     throw new Error('EMAIL_MODE debe ser smtp en produccion');
   }
 
@@ -83,7 +89,9 @@ export function assertSecurityConfig() {
   const smtpPass = getEnv('SMTP_PASS');
 
   if (!smtpHost || !smtpFrom) {
-    throw new Error('SMTP_HOST y SMTP_FROM son obligatorios cuando EMAIL_MODE=smtp');
+    throw new Error(
+      'SMTP_HOST y SMTP_FROM son obligatorios cuando EMAIL_MODE=smtp',
+    );
   }
   if ((smtpUser && !smtpPass) || (!smtpUser && smtpPass)) {
     throw new Error('SMTP_USER y SMTP_PASS deben configurarse juntos');

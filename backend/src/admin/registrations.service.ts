@@ -16,6 +16,7 @@ export class RegistrationsService {
     limit?: number;
     q?: string;
   }) {
+    // Query and actions are split so listing stays read-only and predictable.
     return this.queryService.list(params);
   }
 
@@ -46,6 +47,15 @@ export class RegistrationsService {
     return this.actionService.reject(params);
   }
 
+  async restore(params: {
+    id: number;
+    adminId: number;
+    ip?: string;
+    userAgent?: string;
+  }) {
+    return this.actionService.restore(params);
+  }
+
   async resendCode(params: {
     id: number;
     adminId: number;
@@ -61,6 +71,25 @@ export class RegistrationsService {
     ip?: string;
     userAgent?: string;
   }) {
+    // Operational actions are delegated to keep controller/service surface compact.
     return this.actionService.forceVerify(params);
+  }
+
+  async remove(params: {
+    id: number;
+    adminId: number;
+    ip?: string;
+    userAgent?: string;
+  }) {
+    return this.actionService.remove(params);
+  }
+
+  async removePermanent(params: {
+    id: number;
+    adminId: number;
+    ip?: string;
+    userAgent?: string;
+  }) {
+    return this.actionService.removePermanent(params);
   }
 }

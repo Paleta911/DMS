@@ -21,6 +21,7 @@ export class VersionsMutationService {
     comentario?: string;
     uploadedById?: number;
   }) {
+    // La version siempre se vincula a un documento existente y su area.
     const document = await this.documentRepo.findOne({
       where: { id: params.documentId },
       relations: ['areaCode'],
@@ -35,6 +36,7 @@ export class VersionsMutationService {
       originalName: params.originalName,
       comentario: params.comentario ?? null,
       document,
+      // Permite cargar versiones de procesos automaticos sin usuario autenticado.
       uploadedBy: params.uploadedById
         ? ({ id: params.uploadedById } as User)
         : null,
@@ -44,6 +46,7 @@ export class VersionsMutationService {
   }
 
   async getDocumentAreaCode(documentId: number) {
+    // Se usa para validar alcance/indice sin traer el documento completo.
     const document = await this.documentRepo.findOne({
       where: { id: documentId },
       relations: ['areaCode'],

@@ -14,6 +14,12 @@ import { UserRole } from './user-role.enum';
 import { AreaCode } from '../area-codes/area-code.entity';
 import { UserStatus } from './user-status.enum';
 import { EmailVerification } from '../auth/email-verification.entity';
+import {
+  USER_EMAIL_MAX_LENGTH,
+  USER_NAME_MAX_LENGTH,
+  USER_PHONE_MAX_LENGTH,
+  USER_REQUESTED_AREA_MAX_LENGTH,
+} from '../common/field-limits';
 
 @Entity()
 export class User {
@@ -21,7 +27,7 @@ export class User {
   id: number;
 
   @Index({ unique: true })
-  @Column()
+  @Column({ type: 'varchar', length: USER_EMAIL_MAX_LENGTH })
   email: string;
 
   @Column({ select: false })
@@ -30,16 +36,16 @@ export class User {
   @Column({ type: 'varchar', default: UserRole.User })
   role: UserRole;
 
-  @Column({ type: 'varchar', nullable: true })
+  @Column({ type: 'varchar', length: USER_NAME_MAX_LENGTH, nullable: true })
   nombre?: string | null;
 
-  @Column({ type: 'varchar', nullable: true })
+  @Column({ type: 'varchar', length: USER_NAME_MAX_LENGTH, nullable: true })
   primerApellido?: string | null;
 
-  @Column({ type: 'varchar', nullable: true })
+  @Column({ type: 'varchar', length: USER_NAME_MAX_LENGTH, nullable: true })
   segundoApellido?: string | null;
 
-  @Column({ type: 'varchar', nullable: true })
+  @Column({ type: 'varchar', length: USER_PHONE_MAX_LENGTH, nullable: true })
   telefono?: string | null;
 
   @Column({ type: 'date', nullable: true })
@@ -62,6 +68,19 @@ export class User {
 
   @Column({ type: 'nvarchar', length: 'MAX', nullable: true })
   rejectedReason?: string | null;
+
+  @Column({ type: 'datetime', nullable: true })
+  deletedAt?: Date | null;
+
+  @Column({ type: 'int', nullable: true })
+  deletedById?: number | null;
+
+  @Column({
+    type: 'nvarchar',
+    length: USER_REQUESTED_AREA_MAX_LENGTH,
+    nullable: true,
+  })
+  requestedAreaNombre?: string | null;
 
   @Column({ type: 'bit', default: false })
   isSuperAdmin: boolean;

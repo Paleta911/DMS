@@ -1,8 +1,9 @@
-import { screen } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { renderWithProviders } from '../../test/test-utils';
-import AnalyticsPage from './AnalyticsPage';
+import { screen } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { renderWithProviders } from "../../test/test-utils";
+import AnalyticsPage from "./AnalyticsPage";
 
+// Admin analytics page tests: role gating and rendering of consolidated dashboard data.
 const mocks = vi.hoisted(() => ({
   auth: {
     isAdmin: true,
@@ -12,21 +13,21 @@ const mocks = vi.hoisted(() => ({
   },
 }));
 
-vi.mock('../../auth/AuthContext', () => ({
+vi.mock("../../auth/AuthContext", () => ({
   useAuth: () => ({
     user: mocks.auth.isAdmin
       ? {
           id: 1,
-          email: 'admin@local.com',
-          role: 'admin',
+          email: "admin@local.com",
+          role: "admin",
           isSuperAdmin: true,
         }
       : {
           id: 2,
-          email: 'user@bsm.com.mx',
-          role: 'user',
+          email: "user@bsm.com.mx",
+          role: "user",
         },
-    token: 'token',
+    token: "token",
     isAdmin: mocks.auth.isAdmin,
     login: vi.fn(),
     logout: vi.fn(),
@@ -34,42 +35,42 @@ vi.mock('../../auth/AuthContext', () => ({
   }),
 }));
 
-vi.mock('../../api/endpoints/adminAnalytics', () => mocks.api);
+vi.mock("../../api/endpoints/adminAnalytics", () => mocks.api);
 
-describe('AnalyticsPage', () => {
+describe("AnalyticsPage", () => {
   beforeEach(() => {
     mocks.auth.isAdmin = true;
     mocks.api.adminAnalyticsSummary.mockReset();
     mocks.api.adminAnalyticsSummary.mockResolvedValue({
-      generatedAt: '2026-03-11T12:00:00.000Z',
+      generatedAt: "2026-03-11T12:00:00.000Z",
       windows: {
-        last24h: '2026-03-10T12:00:00.000Z',
-        last7d: '2026-03-04T12:00:00.000Z',
-        last30d: '2026-02-09T12:00:00.000Z',
+        last24h: "2026-03-10T12:00:00.000Z",
+        last7d: "2026-03-04T12:00:00.000Z",
+        last30d: "2026-02-09T12:00:00.000Z",
       },
       documents: {
         total: 120,
         createdLast7d: 8,
-        byStatus: [{ label: 'APPROVED', count: 80 }],
-        topAreas: [{ label: 'RC', count: 40 }],
+        byStatus: [{ label: "APPROVED", count: 80 }],
+        topAreas: [{ label: "RC", count: 40 }],
       },
       registrations: {
-        byStatus: [{ label: 'APPROVED', count: 10 }],
+        byStatus: [{ label: "APPROVED", count: 10 }],
         approvedLast30d: 6,
         pendingApproval: 2,
       },
       permissionRequests: {
         totalPending: 4,
-        byStatus: [{ label: 'PENDING', count: 4 }],
-        byType: [{ label: 'AREAS', count: 3 }],
+        byStatus: [{ label: "PENDING", count: 4 }],
+        byType: [{ label: "PERMISSIONS", count: 3 }],
       },
       audit: {
         totalLast24h: 28,
         accessDeniedLast24h: 2,
-        topActionsLast7d: [{ label: 'SEARCH_QUERY', count: 12 }],
+        topActionsLast7d: [{ label: "AUTH_LOGIN_SUCCESS", count: 12 }],
       },
       search: {
-        elasticStatus: 'up',
+        elasticStatus: "up",
         queue: {
           pendingJobs: 1,
           dueJobs: 0,
@@ -94,20 +95,26 @@ describe('AnalyticsPage', () => {
     });
   });
 
-  it('muestra acceso denegado si el usuario no es admin', async () => {
+  it("muestra acceso denegado si el usuario no es admin", async () => {
     mocks.auth.isAdmin = false;
 
     renderWithProviders(<AnalyticsPage />);
 
-    expect(await screen.findByText('Acceso denegado')).toBeInTheDocument();
+    expect(await screen.findByText("Acceso denegado")).toBeInTheDocument();
   });
 
-  it('muestra el resumen administrativo cuando la consulta responde', async () => {
+  it("muestra el resumen administrativo cuando la consulta responde", async () => {
     renderWithProviders(<AnalyticsPage />);
 
-    expect(await screen.findByText('Analítica')).toBeInTheDocument();
-    expect(await screen.findByText('120')).toBeInTheDocument();
-    expect(await screen.findByText('RC')).toBeInTheDocument();
-    expect(await screen.findByText('Consultas Elastic')).toBeInTheDocument();
+    expect(await screen.findByText("Analítica")).toBeInTheDocument();
+    expect(await screen.findByText("120")).toBeInTheDocument();
+    expect(await screen.findByText("RC")).toBeInTheDocument();
+    expect(await screen.findByText("Consultas Elastic")).toBeInTheDocument();
+    expect((await screen.findAllByText("Aprobado")).length).toBeGreaterThan(0);
+    expect(await screen.findByText("Permisos")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Inicio de sesión exitoso"),
+    ).toBeInTheDocument();
+    expect(await screen.findByText("Elastic: activo")).toBeInTheDocument();
   });
 });

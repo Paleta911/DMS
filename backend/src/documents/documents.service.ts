@@ -8,6 +8,7 @@ import { DocumentsMutationService } from './documents-mutation.service';
 import type { DocumentTextExtractionResult } from './document-text-extraction.types';
 import { DocumentsContentMaintenanceService } from './documents-content-maintenance.service';
 import { VersionTextSource } from '../versions/version-text-source.enum';
+import { DocumentStatus } from './document-status.enum';
 
 @Injectable()
 export class DocumentsService {
@@ -26,6 +27,8 @@ export class DocumentsService {
     originalName: string;
     comentario?: string;
     categoryId?: number;
+    isInternal?: boolean;
+    documentId?: number;
     documentTypeCode?: string;
     areaCode?: string;
     consecutivo?: number;
@@ -35,6 +38,7 @@ export class DocumentsService {
     ocrApplied?: boolean;
     ocrPageCount?: number | null;
   }) {
+    // Upload delegates persistence + version creation to mutation service.
     return this.documentsMutationService.upload(params);
   }
 
@@ -68,8 +72,12 @@ export class DocumentsService {
     categoryId?: string;
     documentTypeCode?: string;
     areaCode?: string;
+    status?: DocumentStatus;
+    from?: string;
+    to?: string;
     sortByName?: 'az' | 'za';
     allowedAreaCodes?: string[] | null;
+    includeHiddenStatuses?: boolean;
   }) {
     return this.documentsQueryService.list(params);
   }
@@ -78,23 +86,37 @@ export class DocumentsService {
     id: number,
     versionsLimit = 5,
     allowedAreaCodes?: string[] | null,
+    includeHiddenStatuses = false,
   ) {
-    return this.documentsQueryService.findOne(id, versionsLimit, allowedAreaCodes);
+    return this.documentsQueryService.findOne(
+      id,
+      versionsLimit,
+      allowedAreaCodes,
+      includeHiddenStatuses,
+    );
   }
 
   async ensureAccess(
     documentId: number,
     allowedAreaCodes?: string[] | null,
+    includeHiddenStatuses = false,
   ) {
-    return this.documentsAccessService.ensureAccess(documentId, allowedAreaCodes, {
-      areaCode: true,
-    });
+    // Centralized guard for area/status visibility checks.
+    return this.documentsAccessService.ensureAccess(
+      documentId,
+      allowedAreaCodes,
+      {
+        areaCode: true,
+      },
+      includeHiddenStatuses,
+    );
   }
 
   async update(
     id: number,
     nombreDocumento?: string,
     categoryId?: number | null,
+    isInternal?: boolean,
     documentTypeCode?: string,
     areaCodeValue?: string,
     consecutivoValue?: number | null,
@@ -103,6 +125,7 @@ export class DocumentsService {
       id,
       nombreDocumento,
       categoryId,
+      isInternal,
       documentTypeCode,
       areaCodeValue,
       consecutivoValue,
@@ -112,10 +135,12 @@ export class DocumentsService {
   async findVersionsByDocument(
     documentId: number,
     allowedAreaCodes?: string[] | null,
+    includeHiddenStatuses = false,
   ) {
     return this.documentsQueryService.findVersionsByDocument(
       documentId,
       allowedAreaCodes,
+      includeHiddenStatuses,
     );
   }
 
@@ -136,7 +161,11 @@ export class DocumentsService {
   }
 
   async submitReview(documentId: number, actorId: number, isAdmin: boolean) {
-    return this.documentsWorkflowService.submitReview(documentId, actorId, isAdmin);
+    return this.documentsWorkflowService.submitReview(
+      documentId,
+      actorId,
+      isAdmin,
+    );
   }
 
   async reviewDecision(params: {
@@ -154,6 +183,7 @@ export class DocumentsService {
   }
 
   async reprocessContent(params?: { documentId?: number; force?: boolean }) {
+    // Rebuilds extracted content (including OCR path) for existing versions.
     return this.documentsContentMaintenanceService.reprocessContent(params);
   }
 }

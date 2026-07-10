@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
+// Unit test for root controller using a mocked AppService dependency.
 describe('AppController', () => {
   let appController: AppController;
 

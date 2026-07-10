@@ -7,6 +7,7 @@ import { AuthRegistrationService } from './auth-registration.service';
 import { AuthLoginService } from './auth-login.service';
 import { AuthEmailVerificationFlowService } from './auth-email-verification-flow.service';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
+import { VerificationEmailDto } from './dto/verification-email.dto';
 
 @Injectable()
 export class AuthService {
@@ -20,6 +21,7 @@ export class AuthService {
     dto: RegisterDto,
     meta?: { actorId?: number; ip?: string; userAgent?: string },
   ) {
+    // Thin facade: orchestration lives in specialized auth services.
     return this.authRegistrationService.register(dto, meta);
   }
 
@@ -27,10 +29,7 @@ export class AuthService {
     return this.authRegistrationService.bootstrapAdmin(dto);
   }
 
-  async login(
-    dto: LoginDto,
-    meta?: { ip?: string; userAgent?: string },
-  ) {
+  async login(dto: LoginDto, meta?: { ip?: string; userAgent?: string }) {
     return this.authLoginService.login(dto, meta);
   }
 
@@ -41,10 +40,22 @@ export class AuthService {
     return this.authEmailVerificationFlowService.verifyEmail(dto, meta);
   }
 
+  async resendVerificationCode(
+    dto: VerificationEmailDto,
+    meta?: { ip?: string; userAgent?: string },
+  ) {
+    return this.authEmailVerificationFlowService.resendCode(dto, meta);
+  }
+
+  async getVerificationStatus(dto: VerificationEmailDto) {
+    return this.authEmailVerificationFlowService.getVerificationStatus(dto);
+  }
+
   async refreshSession(
     dto: RefreshTokenDto,
     meta?: { ip?: string; userAgent?: string },
   ) {
+    // Refresh flow is delegated so token policy stays centralized.
     return this.authLoginService.refreshSession(dto, meta);
   }
 }

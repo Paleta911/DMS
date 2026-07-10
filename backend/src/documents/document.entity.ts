@@ -29,6 +29,9 @@ export class Document {
   @Column({ type: 'varchar', default: DocumentStatus.Draft })
   status: DocumentStatus;
 
+  @Column({ type: 'bit', default: false })
+  isInternal: boolean;
+
   @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL' })
   createdBy?: User | null;
 

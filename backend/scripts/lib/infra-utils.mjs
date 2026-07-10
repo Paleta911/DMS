@@ -6,6 +6,7 @@ import { config as dotenvConfig } from 'dotenv';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenvConfig({ path: path.resolve(__dirname, '..', '..', '.env') });
 
+// Shared infra helpers for operational scripts (DB/Elastic readiness + polling).
 function toNumber(value, fallback) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
@@ -26,6 +27,7 @@ function toBool(value, fallback) {
 }
 
 export function resolveInfraEnv() {
+  // Centralize env parsing so scripts behave consistently across local/CI.
   return {
     dbHost: process.env.DB_HOST ?? 'localhost',
     dbPort: toNumber(process.env.DB_PORT, 1433),
@@ -48,6 +50,7 @@ export async function checkSqlReady({
   trustServerCertificate,
   timeoutMs = 2500,
 } = {}) {
+  // Lightweight SQL login/probe check used by startup smoke scripts.
   const env = resolveInfraEnv();
   const pool = new sql.ConnectionPool({
     server: host ?? env.dbHost,
@@ -59,8 +62,7 @@ export async function checkSqlReady({
     requestTimeout: timeoutMs,
     options: {
       encrypt: encrypt ?? env.dbEncrypt,
-      trustServerCertificate:
-        trustServerCertificate ?? env.dbTrustCert,
+      trustServerCertificate: trustServerCertificate ?? env.dbTrustCert,
     },
   });
 
@@ -85,6 +87,7 @@ export async function ensureDatabaseExists({
   trustServerCertificate,
   timeoutMs = 5000,
 } = {}) {
+  // Ensure target DB exists before migrations or app bootstrap.
   const env = resolveInfraEnv();
   const targetDatabase = database ?? env.dbName;
   const pool = new sql.ConnectionPool({
@@ -97,8 +100,7 @@ export async function ensureDatabaseExists({
     requestTimeout: timeoutMs,
     options: {
       encrypt: encrypt ?? env.dbEncrypt,
-      trustServerCertificate:
-        trustServerCertificate ?? env.dbTrustCert,
+      trustServerCertificate: trustServerCertificate ?? env.dbTrustCert,
     },
   });
 
@@ -107,8 +109,7 @@ export async function ensureDatabaseExists({
     const escapedDatabase = targetDatabase.replace(/]/g, ']]');
     const result = await pool
       .request()
-      .input('dbName', sql.NVarChar(128), targetDatabase)
-      .query(`
+      .input('dbName', sql.NVarChar(128), targetDatabase).query(`
         SELECT DB_ID(@dbName) AS dbId;
         IF DB_ID(@dbName) IS NULL
         BEGIN
@@ -126,6 +127,7 @@ export async function ensureDatabaseExists({
 }
 
 export async function checkElasticReady(nodeUrl, timeoutMs = 2500) {
+  // Validate both root endpoint and cluster health endpoint.
   const controllerRoot = new AbortController();
   const rootTimer = setTimeout(() => controllerRoot.abort(), timeoutMs);
   try {
@@ -171,6 +173,7 @@ export async function waitForDependency({
   intervalMs = 2000,
   logEveryMs = 10000,
 }) {
+  // Generic polling loop for infra readiness with periodic progress logs.
   const startedAt = Date.now();
   let attempts = 0;
   let lastLogAt = 0;

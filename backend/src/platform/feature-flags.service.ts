@@ -19,11 +19,13 @@ export const DEFAULT_FEATURE_FLAGS: AppFeatureFlag[] = [
   'i18n',
 ];
 
+// Feature flag service enables toggling app capabilities (audit exports, analytics, i18n, dark mode, etc.) via environment config
 @Injectable()
 export class FeatureFlagsService {
   private readonly flags: Set<string>;
 
   constructor() {
+    // Load flags from FEATURE_FLAGS env var (comma-separated) or use defaults if not provided
     const raw = process.env.FEATURE_FLAGS?.trim();
     const source =
       raw && raw.length > 0

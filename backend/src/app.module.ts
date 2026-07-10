@@ -25,10 +25,12 @@ import { PermissionsModule } from './permissions/permissions.module';
 import { AdminModule } from './admin/admin.module';
 import { ObservabilityModule } from './observability/observability.module';
 import { PlatformModule } from './platform/platform.module';
+import { DocumentVisibilityModule } from './document-visibility/document-visibility.module';
 import { writeAppLog } from './common/logging.utils';
 import { assertSecurityConfig } from './common/security-config.utils';
 
 const envValidationSchema = Joi.object({
+  // Validation here centralizes runtime guarantees before Nest bootstraps modules.
   NODE_ENV: Joi.string()
     .valid('development', 'test', 'production')
     .default('development'),
@@ -47,10 +49,7 @@ const envValidationSchema = Joi.object({
     .truthy('true', '1')
     .falsy('false', '0')
     .default(true),
-  DB_SYNC: Joi.boolean()
-    .truthy('true', '1')
-    .falsy('false', '0')
-    .default(false),
+  DB_SYNC: Joi.boolean().truthy('true', '1').falsy('false', '0').default(false),
   JWT_SECRET: Joi.string().min(8).required(),
   JWT_EXPIRES_IN: Joi.string().default('1d'),
   JWT_ACCESS_EXPIRES_IN_SEC: Joi.number().integer().min(60).default(86400),
@@ -61,7 +60,7 @@ const envValidationSchema = Joi.object({
   AUTH_LOGIN_LIMIT: Joi.number().integer().min(1).default(10),
   AUTH_LOGIN_TTL_SEC: Joi.number().integer().min(1).default(60),
   AUTH_LOGIN_BLOCK_AFTER: Joi.number().integer().min(3).default(5),
-  AUTH_LOGIN_BLOCK_SEC: Joi.number().integer().min(60).default(900),
+  AUTH_LOGIN_BLOCK_SEC: Joi.number().integer().min(60).default(300),
   AUTH_LOGIN_RESET_WINDOW_SEC: Joi.number().integer().min(60).default(3600),
   AUTH_REGISTER_LIMIT: Joi.number().integer().min(1).default(6),
   AUTH_REGISTER_TTL_SEC: Joi.number().integer().min(1).default(300),
@@ -96,11 +95,13 @@ const envValidationSchema = Joi.object({
   APP_RUNTIME_ROLE: Joi.string()
     .valid('both', 'web', 'worker', 'disabled')
     .default('both'),
-  FEATURE_FLAGS: Joi.string()
-    .default(
-      'audit-json-export,admin-analytics,notifications,saved-views,advanced-exports,dark-mode,i18n',
-    ),
-  CSP_ENABLED: Joi.boolean().truthy('true', '1').falsy('false', '0').default(true),
+  FEATURE_FLAGS: Joi.string().default(
+    'audit-json-export,admin-analytics,notifications,saved-views,advanced-exports,dark-mode,i18n',
+  ),
+  CSP_ENABLED: Joi.boolean()
+    .truthy('true', '1')
+    .falsy('false', '0')
+    .default(true),
   CSP_DEFAULT_SRC: Joi.string().allow('').optional(),
   CSP_CONNECT_SRC: Joi.string().allow('').optional(),
   CSP_IMG_SRC: Joi.string().allow('').optional(),
@@ -109,13 +110,18 @@ const envValidationSchema = Joi.object({
   CSP_SCRIPT_SRC: Joi.string().allow('').optional(),
   ES_NODE: Joi.string().uri().default('http://localhost:9200'),
   ES_INDEX_DOCUMENTS: Joi.string().default('dms_documents'),
-  SEARCH_MODE: Joi.string().valid('auto', 'elastic', 'fallback').default('auto'),
+  SEARCH_MODE: Joi.string()
+    .valid('auto', 'elastic', 'fallback')
+    .default('auto'),
   SEARCH_INDEX_MAX_RETRIES: Joi.number().integer().min(1).default(5),
   SEARCH_INDEX_RETRY_BASE_MS: Joi.number().integer().min(200).default(2000),
   SEARCH_INDEX_RETRY_MAX_MS: Joi.number().integer().min(200).default(30000),
   SEARCH_INDEX_WORKER_MS: Joi.number().integer().min(500).default(3000),
   SEARCH_INDEX_BATCH_SIZE: Joi.number().integer().min(1).default(10),
-  OCR_ENABLED: Joi.boolean().truthy('true', '1').falsy('false', '0').default(true),
+  OCR_ENABLED: Joi.boolean()
+    .truthy('true', '1')
+    .falsy('false', '0')
+    .default(true),
   OCR_TESSERACT_BIN: Joi.string().default('tesseract'),
   OCR_PDFTOPPM_BIN: Joi.string().default('pdftoppm'),
   OCR_LANGS: Joi.string().default('spa+eng'),
@@ -159,9 +165,16 @@ const envValidationSchema = Joi.object({
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: () => {
+        // Production security checks fail fast to avoid starting with unsafe defaults.
         assertSecurityConfig();
         const nodeEnv = process.env.NODE_ENV ?? 'development';
-        const requiredDbVars = ['DB_HOST', 'DB_PORT', 'DB_USER', 'DB_PASS', 'DB_NAME'];
+        const requiredDbVars = [
+          'DB_HOST',
+          'DB_PORT',
+          'DB_USER',
+          'DB_PASS',
+          'DB_NAME',
+        ];
         if (nodeEnv === 'production') {
           for (const key of requiredDbVars) {
             if (!process.env[key]) {
@@ -199,11 +212,13 @@ const envValidationSchema = Joi.object({
           writeAppLog({
             level: 'warn',
             event: 'db_sync_enabled',
-            message: 'synchronize esta habilitado. Solo debe usarse en desarrollo.',
+            message:
+              'synchronize esta habilitado. Solo debe usarse en desarrollo.',
           });
         }
 
         return {
+          // Keep migrations authoritative; synchronize is intentionally disabled by default.
           type: 'mssql' as const,
           host: getEnv('DB_HOST', 'localhost'),
           port: getEnvNumber('DB_PORT', 1433),
@@ -232,6 +247,7 @@ const envValidationSchema = Joi.object({
     DocumentTypesModule,
     AreaCodesModule,
     SearchModule,
+    DocumentVisibilityModule,
     AuditLogModule,
     ObservabilityModule,
     PermissionsModule,

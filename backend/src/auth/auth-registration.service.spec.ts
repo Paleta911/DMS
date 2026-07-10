@@ -10,6 +10,7 @@ describe('AuthRegistrationService', () => {
     findByEmailWithPassword: jest.fn(),
     createUser: jest.fn(),
     saveUser: jest.fn(),
+    setAllowedAreas: jest.fn(),
     toSafeUser: jest.fn((user) => ({
       id: user.id,
       email: user.email,
@@ -27,6 +28,11 @@ describe('AuthRegistrationService', () => {
   const userAdminPolicyService = {
     assertCanCreateAdmin: jest.fn(),
   };
+  const areaCodesService = {
+    findActiveList: jest.fn().mockResolvedValue([
+      { code: 'FA', nombre: 'Fabrica' },
+    ]),
+  };
 
   let service: AuthRegistrationService;
 
@@ -37,6 +43,7 @@ describe('AuthRegistrationService', () => {
       auditLogService as never,
       verificationService as never,
       userAdminPolicyService as never,
+      areaCodesService as never,
     );
   });
 
@@ -48,6 +55,7 @@ describe('AuthRegistrationService', () => {
         nombre: 'Test',
         primerApellido: 'Usuario',
         email: 'usuario@example.com',
+        areaCode: 'FA',
         password: 'Password123',
         confirmPassword: 'Password123',
       }),
@@ -67,6 +75,7 @@ describe('AuthRegistrationService', () => {
       nombre: 'Test',
       primerApellido: 'Usuario',
       email: 'usuario@bsm.com.mx',
+      areaCode: 'FA',
       password: 'Password123',
       confirmPassword: 'Password123',
     });

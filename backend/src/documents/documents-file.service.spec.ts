@@ -33,6 +33,20 @@ describe('DocumentsFileService', () => {
     (readFileSync as jest.Mock).mockReturnValue(Buffer.from('%PDF-1.7 sample %%EOF'));
   });
 
+  it('acepta la firma binaria de archivos XLS legacy', () => {
+    (readFileSync as jest.Mock).mockReturnValue(
+      Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1, 0x00, 0x00]),
+    );
+
+    expect(() =>
+      service.assertUploadFileSignature({
+        filePath: 'C:\\docs\\reporte.xls',
+        originalName: 'reporte.xls',
+        mimeType: 'application/vnd.ms-excel',
+      }),
+    ).not.toThrow();
+  });
+
   it('usa el texto nativo del PDF cuando es suficiente', async () => {
     (pdfParse as jest.Mock).mockResolvedValue({
       text: 'Este PDF ya contiene texto suficiente para indexar dentro del sistema.',

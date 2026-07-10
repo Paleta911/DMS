@@ -1,4 +1,13 @@
-import { Body, Controller, Get, Post, Query, Req, UseGuards } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  Post,
+  Query,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
@@ -12,6 +21,7 @@ import {
   throttleFromEnv,
 } from '../common/throttle.utils';
 
+// Per-user/IP throttles protect self-service request endpoints from bursts/abuse.
 const permissionRequestThrottle = throttleFromEnv(
   'PERMISSION_REQUEST_LIMIT',
   'PERMISSION_REQUEST_TTL_SEC',
@@ -41,6 +51,7 @@ export class PermissionRequestsController {
     @Body() body: CreatePermissionRequestDto,
     @Req() req: Request & { user?: { id?: number } },
   ) {
+    // JWT guard should populate user, but keep safe fallback for malformed contexts.
     const userId = req.user?.id;
     if (!userId) {
       return null;
@@ -62,17 +73,12 @@ export class PermissionRequestsController {
     @Body() body: CreateAreaRequestDto,
     @Req() req: Request & { user?: { id?: number } },
   ) {
-    const userId = req.user?.id;
-    if (!userId) {
-      return null;
-    }
-    return this.requestsService.createAreaRequest({
-      userId,
-      areaCodes: body.areaCodes,
-      comment: body.comment,
-      ip: req.ip,
-      userAgent: req.headers['user-agent'] as string | undefined,
-    });
+    // Area self-service is intentionally disabled by business policy.
+    void body;
+    void req;
+    throw new BadRequestException(
+      'Las solicitudes de área ya no están disponibles',
+    );
   }
 
   @UseGuards(JwtAuthGuard)
@@ -82,6 +88,7 @@ export class PermissionRequestsController {
     @Req() req: Request & { user?: { id?: number } },
     @Query() query: MinePermissionRequestsQueryDto,
   ) {
+    // Return paginated empty shape to keep frontend contract stable when unauthenticated.
     const userId = req.user?.id;
     if (!userId) {
       return { items: [], total: 0, page: 1, limit: query.limit ?? 20 };

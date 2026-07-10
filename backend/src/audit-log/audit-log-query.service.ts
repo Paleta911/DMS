@@ -3,6 +3,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, SelectQueryBuilder } from 'typeorm';
 import { AuditLog } from './audit-log.entity';
 import { AuditLogFilterParams } from './audit-log.types';
+import { User } from '../users/user.entity';
+import { DeletedUserRecord } from '../users/deleted-user-record.entity';
 
 @Injectable()
 export class AuditLogQueryService {
@@ -13,7 +15,7 @@ export class AuditLogQueryService {
 
   async query(params: AuditLogFilterParams) {
     const page = params.page ?? 1;
-    const limit = params.limit ?? 20;
+    const limit = params.limit ?? 10;
     const skip = (page - 1) * limit;
 
     const qb = this.buildQuery(params).skip(skip).take(limit);
@@ -74,6 +76,12 @@ export class AuditLogQueryService {
   private buildQuery(params: AuditLogFilterParams): SelectQueryBuilder<AuditLog> {
     const qb = this.auditRepo
       .createQueryBuilder('audit')
+      .leftJoin(User, 'user', 'user.id = audit.userId')
+      .leftJoin(
+        DeletedUserRecord,
+        'deletedUser',
+        'deletedUser.originalUserId = audit.userId',
+      )
       .orderBy('audit.createdAt', 'DESC');
 
     if (params.action) {
@@ -83,7 +91,18 @@ export class AuditLogQueryService {
     if (params.user?.trim()) {
       const userFilter = `%${params.user.trim().toLowerCase()}%`;
       qb.andWhere(
-        '(CAST(audit.userId AS varchar(30)) LIKE :userFilter OR LOWER(COALESCE(audit.meta, \'\')) LIKE :userFilter)',
+        `(
+          CAST(audit.userId AS varchar(30)) LIKE :userFilter
+          OR LOWER(COALESCE([user].[email], '')) LIKE :userFilter
+          OR LOWER(COALESCE([user].[nombre], '')) LIKE :userFilter
+          OR LOWER(COALESCE([user].[primerApellido], '')) LIKE :userFilter
+          OR LOWER(COALESCE([user].[segundoApellido], '')) LIKE :userFilter
+          OR LOWER(COALESCE([deletedUser].[email], '')) LIKE :userFilter
+          OR LOWER(COALESCE([deletedUser].[nombre], '')) LIKE :userFilter
+          OR LOWER(COALESCE([deletedUser].[primerApellido], '')) LIKE :userFilter
+          OR LOWER(COALESCE([deletedUser].[segundoApellido], '')) LIKE :userFilter
+          OR LOWER(COALESCE(audit.meta, '')) LIKE :userFilter
+        )`,
         { userFilter },
       );
     }
@@ -96,8 +115,17 @@ export class AuditLogQueryService {
           OR LOWER(audit.resourceType) LIKE :queryFilter
           OR LOWER(COALESCE(audit.resourceId, '')) LIKE :queryFilter
           OR LOWER(COALESCE(audit.ip, '')) LIKE :queryFilter
+          OR LOWER(COALESCE(audit.userAgent, '')) LIKE :queryFilter
           OR LOWER(COALESCE(audit.meta, '')) LIKE :queryFilter
           OR CAST(audit.userId AS varchar(30)) LIKE :queryFilter
+          OR LOWER(COALESCE([user].[email], '')) LIKE :queryFilter
+          OR LOWER(COALESCE([user].[nombre], '')) LIKE :queryFilter
+          OR LOWER(COALESCE([user].[primerApellido], '')) LIKE :queryFilter
+          OR LOWER(COALESCE([user].[segundoApellido], '')) LIKE :queryFilter
+          OR LOWER(COALESCE([deletedUser].[email], '')) LIKE :queryFilter
+          OR LOWER(COALESCE([deletedUser].[nombre], '')) LIKE :queryFilter
+          OR LOWER(COALESCE([deletedUser].[primerApellido], '')) LIKE :queryFilter
+          OR LOWER(COALESCE([deletedUser].[segundoApellido], '')) LIKE :queryFilter
         )`,
         { queryFilter },
       );

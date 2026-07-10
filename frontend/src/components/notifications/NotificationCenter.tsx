@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { Bell } from 'lucide-react';
-import { Button } from '../ui/Button';
-import type { OperationalNotification } from '../../hooks/useOperationalNotifications';
-import { useI18n } from '../../i18n/I18nProvider';
-import { useFeatureFlag } from '../../features/FeatureFlagsProvider';
+import { useEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
+import { Bell } from "lucide-react";
+import { Button } from "../ui/Button";
+import type { OperationalNotification } from "../../hooks/useOperationalNotifications";
+import { useI18n } from "../../i18n/I18nProvider";
+import { useFeatureFlag } from "../../features/FeatureFlagsProvider";
 
 export function NotificationCenter({
   notifications,
@@ -24,27 +24,28 @@ export function NotificationCenter({
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const { t } = useI18n();
-  const notificationsEnabled = useFeatureFlag('notifications');
+  const notificationsEnabled = useFeatureFlag("notifications");
 
   useEffect(() => {
     if (!open) {
       return;
     }
+    // Close popup on outside click or Escape for keyboard/mouse accessibility.
     const onPointerDown = (event: MouseEvent) => {
       if (!rootRef.current?.contains(event.target as Node)) {
         setOpen(false);
       }
     };
     const onEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
+      if (event.key === "Escape") {
         setOpen(false);
       }
     };
-    window.addEventListener('mousedown', onPointerDown);
-    window.addEventListener('keydown', onEscape);
+    window.addEventListener("mousedown", onPointerDown);
+    window.addEventListener("keydown", onEscape);
     return () => {
-      window.removeEventListener('mousedown', onPointerDown);
-      window.removeEventListener('keydown', onEscape);
+      window.removeEventListener("mousedown", onPointerDown);
+      window.removeEventListener("keydown", onEscape);
     };
   }, [open]);
 
@@ -59,8 +60,8 @@ export function NotificationCenter({
         variant="outline"
         aria-label={
           unreadCount > 0
-            ? t('notifications.openWithCount', { unreadCount })
-            : t('notifications.open')
+            ? t("notifications.openWithCount", { unreadCount })
+            : t("notifications.open")
         }
         aria-expanded={open}
         aria-haspopup="dialog"
@@ -70,23 +71,23 @@ export function NotificationCenter({
         <Bell size={16} />
         {unreadCount > 0 ? (
           <span className="absolute -right-1 -top-1 inline-flex min-h-[20px] min-w-[20px] items-center justify-center rounded-full bg-brand-primary px-1 text-[11px] font-bold text-white">
-            {unreadCount > 9 ? '9+' : unreadCount}
+            {unreadCount > 9 ? "9+" : unreadCount}
           </span>
         ) : null}
       </Button>
       {open ? (
         <div
           role="dialog"
-          aria-label={t('notifications.dialogLabel')}
+          aria-label={t("notifications.dialogLabel")}
           className="absolute right-0 z-30 mt-2 flex w-[min(420px,calc(100vw-2rem))] flex-col gap-3 rounded-2xl border border-brand-border bg-brand-surface p-3 shadow-soft"
         >
           <div className="flex items-center justify-between gap-3">
             <div>
               <div className="font-semibold text-brand-text">
-                {t('notifications.title')}
+                {t("notifications.title")}
               </div>
               <div className="text-xs text-brand-textMuted">
-                {t('notifications.subtitle')}
+                {t("notifications.subtitle")}
               </div>
             </div>
             <Button
@@ -98,34 +99,35 @@ export function NotificationCenter({
               }}
               disabled={notifications.length === 0}
             >
-              {t('notifications.markAll')}
+              {t("notifications.markAll")}
             </Button>
           </div>
 
           {isLoading ? (
             <div className="rounded-xl border border-brand-border bg-brand-bg/60 px-3 py-4 text-sm text-brand-textMuted">
-              {t('notifications.loading')}
+              {t("notifications.loading")}
             </div>
           ) : notifications.length === 0 ? (
             <div className="rounded-xl border border-brand-border bg-brand-bg/60 px-3 py-4 text-sm text-brand-textMuted">
-              {t('notifications.empty')}
+              {t("notifications.empty")}
             </div>
           ) : (
             <ul className="flex max-h-[420px] flex-col gap-2 overflow-y-auto">
               {notifications.map((notification) => {
                 const unread = isUnread(notification.signature);
                 const toneClass =
-                  notification.tone === 'success'
-                    ? 'border-emerald-500/30 bg-emerald-500/10'
-                    : notification.tone === 'warning'
-                      ? 'border-amber-500/30 bg-amber-500/10'
-                      : 'border-brand-border bg-brand-bg/60';
+                  notification.tone === "success"
+                    ? "border-emerald-500/30 bg-emerald-500/10"
+                    : notification.tone === "warning"
+                      ? "border-amber-500/30 bg-amber-500/10"
+                      : "border-brand-border bg-brand-bg/60";
                 return (
                   <li key={notification.id} className="list-none">
                     <Link
                       to={notification.href}
                       className={`flex flex-col gap-1 rounded-xl border px-3 py-3 text-sm transition hover:border-brand-primary ${toneClass}`}
                       onClick={() => {
+                        // Mark notification read when user navigates from it.
                         onRead(notification.signature);
                         setOpen(false);
                       }}
@@ -136,7 +138,7 @@ export function NotificationCenter({
                         </span>
                         {!unread ? null : (
                           <span className="rounded-full bg-brand-primary/10 px-2 py-0.5 text-[11px] font-semibold text-brand-primary">
-                            {t('notifications.new')}
+                            {t("notifications.new")}
                           </span>
                         )}
                       </div>

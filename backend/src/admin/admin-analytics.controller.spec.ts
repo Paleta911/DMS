@@ -6,6 +6,7 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { ROLES_KEY } from '../auth/roles.decorator';
 import { UserRole } from '../users/user-role.enum';
 
+// Verifies admin-analytics controller auth metadata and feature-flag gate behavior.
 describe('AdminAnalyticsController', () => {
   it('declara guardias y rol admin', () => {
     const guards = Reflect.getMetadata(
@@ -28,7 +29,9 @@ describe('AdminAnalyticsController', () => {
       } as never,
       {
         assertEnabled: jest.fn(() => {
-          throw new NotFoundException('La analitica administrativa no esta habilitada');
+          throw new NotFoundException(
+            'La analitica administrativa no esta habilitada',
+          );
         }),
       } as never,
     );

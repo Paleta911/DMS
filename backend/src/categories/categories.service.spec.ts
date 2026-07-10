@@ -3,6 +3,7 @@ import { CategoriesService } from './categories.service';
 import { CategoriesQueryService } from './categories-query.service';
 import { CategoriesMutationService } from './categories-mutation.service';
 
+// Basic DI wiring test for categories facade service.
 describe('CategoriesService', () => {
   let service: CategoriesService;
 

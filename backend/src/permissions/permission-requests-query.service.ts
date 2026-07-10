@@ -7,6 +7,7 @@ import {
   PermissionRequestType,
 } from './permission-request.entity';
 
+// Query service for permission/area requests used by users (mine) and admins (review queues).
 @Injectable()
 export class PermissionRequestsQueryService {
   constructor(
@@ -35,6 +36,7 @@ export class PermissionRequestsQueryService {
     page?: number;
     limit?: number;
   }) {
+    // Admin view supports filters by status/type/user/detail with stable pagination.
     const page = params.page ?? 1;
     const limit = params.limit ?? 20;
     const skip = (page - 1) * limit;
@@ -52,6 +54,7 @@ export class PermissionRequestsQueryService {
     detail?: string;
     maxRows?: number;
   }) {
+    // Cap exported rows to avoid unbounded memory/response size.
     const maxRows = Math.min(Math.max(params.maxRows ?? 5000, 1), 10000);
     const items = await this.buildAdminQuery(params).take(maxRows).getMany();
     const headers = [
@@ -84,7 +87,10 @@ export class PermissionRequestsQueryService {
         .join(','),
     );
 
-    return [headers.map((header) => this.toCsvCell(header)).join(','), ...lines].join('\n');
+    return [
+      headers.map((header) => this.toCsvCell(header)).join(','),
+      ...lines,
+    ].join('\n');
   }
 
   async getById(id: number) {
@@ -104,6 +110,7 @@ export class PermissionRequestsQueryService {
     user?: string;
     detail?: string;
   }) {
+    // Centralized query builder keeps list/export filters aligned.
     const qb = this.requestRepo
       .createQueryBuilder('request')
       .leftJoinAndSelect('request.user', 'user')

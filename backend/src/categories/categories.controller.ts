@@ -22,6 +22,7 @@ import { Roles } from '../auth/roles.decorator';
 import { UserRole } from '../users/user-role.enum';
 import { HttpAuditService } from '../audit-log/http-audit.service';
 
+// Admin-only categories controller: CRUD endpoints for document classification types with audit trail
 @ApiTags('categories')
 @Controller('categories')
 export class CategoriesController {
@@ -30,6 +31,7 @@ export class CategoriesController {
     private readonly httpAuditService: HttpAuditService,
   ) {}
 
+  // Create new category (admin only); audit logs creation event
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.Admin)
@@ -55,6 +57,7 @@ export class CategoriesController {
     return this.categoriesService.findAll({
       q: query.q,
       includeInactive: query.includeInactive,
+      status: query.status,
       page: query.page,
       limit: query.limit,
     });
@@ -92,9 +95,27 @@ export class CategoriesController {
   ) {
     const result = await this.categoriesService.remove(Number(id));
     await this.httpAuditService.logFromRequest(req, {
+      action: 'CATEGORY_DEACTIVATED',
+      resourceType: 'category',
+      resourceId: Number(id),
+    });
+    return result;
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.Admin)
+  @Delete(':id/permanent')
+  @ApiBearerAuth()
+  async hardDelete(
+    @Param('id') id: string,
+    @Req() req: Request & { user?: { id?: number } },
+  ) {
+    const result = await this.categoriesService.hardDelete(Number(id));
+    await this.httpAuditService.logFromRequest(req, {
       action: 'CATEGORY_DELETED',
       resourceType: 'category',
       resourceId: Number(id),
+      meta: { nombre: result.nombre },
     });
     return result;
   }

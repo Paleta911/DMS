@@ -56,6 +56,7 @@ export class SearchEngineService {
     }
 
     const now = Date.now();
+    // Lightweight cache avoids hammering Elastic for repeated health probes.
     if (this.lastHealthCheck && now - this.lastHealthCheck.checkedAt < ttlMs) {
       return { status: this.lastHealthCheck.status };
     }
@@ -83,6 +84,7 @@ export class SearchEngineService {
       this.esAvailable = true;
       this.backendMetricsService.recordElasticStatus('up');
       if (!this.indexReady) {
+        // Create index lazily on first successful connectivity check.
         await this.ensureIndex();
         this.indexReady = true;
       }
@@ -120,6 +122,7 @@ export class SearchEngineService {
   }
 
   private async ensureIndex() {
+    // Mapping aligns with indexed document payload produced by indexing service.
     const exists = await this.elasticsearchService.indices.exists({
       index: this.indexName,
     });

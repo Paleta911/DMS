@@ -24,6 +24,7 @@ export class AppExceptionFilter implements ExceptionFilter {
     const response = ctx.getResponse<Response>();
 
     if (exception instanceof MulterError) {
+      // Normalize Multer errors to the same API contract used by all endpoints.
       return response.status(HttpStatus.BAD_REQUEST).json(
         buildApiErrorResponse({
           statusCode: HttpStatus.BAD_REQUEST,
@@ -46,6 +47,8 @@ export class AppExceptionFilter implements ExceptionFilter {
               error?: string;
               errors?: unknown;
               code?: string;
+              remainingSec?: unknown;
+              blockedUntil?: unknown;
             });
 
       const errors =
@@ -65,13 +68,25 @@ export class AppExceptionFilter implements ExceptionFilter {
           message,
           errors: errors.length > 0 ? errors : undefined,
           code: payload.code,
+          remainingSec:
+            typeof payload.remainingSec === 'number' &&
+            Number.isFinite(payload.remainingSec)
+              ? payload.remainingSec
+              : undefined,
+          blockedUntil:
+            typeof payload.blockedUntil === 'string'
+              ? payload.blockedUntil
+              : undefined,
           request,
         }),
       );
     }
 
+    // Unknown exceptions are logged server-side but return a safe generic message.
     const message =
-      exception instanceof Error ? exception.message : 'Error interno del servidor';
+      exception instanceof Error
+        ? exception.message
+        : 'Error interno del servidor';
 
     writeAppLog({
       level: 'error',

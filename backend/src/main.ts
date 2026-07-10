@@ -23,15 +23,13 @@ async function bootstrap() {
   app.enableCors({ origin: corsOrigins });
   app.use(
     helmet({
+      // CSP is env-driven so deployment can tighten or relax directives per environment.
       contentSecurityPolicy:
         getEnv('CSP_ENABLED', 'true') !== 'false'
           ? {
               useDefaults: true,
               directives: {
-                defaultSrc: parseCspDirective(
-                  'CSP_DEFAULT_SRC',
-                  ["'self'"],
-                ),
+                defaultSrc: parseCspDirective('CSP_DEFAULT_SRC', ["'self'"]),
                 connectSrc: parseCspDirective('CSP_CONNECT_SRC', [
                   "'self'",
                   ...getCorsOriginsForCsp(corsOrigins),
@@ -45,10 +43,7 @@ async function bootstrap() {
                   "'self'",
                   "'unsafe-inline'",
                 ]),
-                fontSrc: parseCspDirective('CSP_FONT_SRC', [
-                  "'self'",
-                  'data:',
-                ]),
+                fontSrc: parseCspDirective('CSP_FONT_SRC', ["'self'", 'data:']),
                 scriptSrc: parseCspDirective('CSP_SCRIPT_SRC', ["'self'"]),
               },
             }
@@ -68,6 +63,7 @@ async function bootstrap() {
   app.use(requestIdMiddleware);
   app.useGlobalPipes(
     new ValidationPipe({
+      // This enforces DTO contracts and normalizes validation errors into app format.
       whitelist: true,
       transform: true,
       forbidNonWhitelisted: true,
@@ -77,14 +73,14 @@ async function bootstrap() {
   app.useGlobalFilters(new AppExceptionFilter());
   app.useGlobalInterceptors(app.get(RequestLoggingInterceptor));
 
-  const uploadDir =
-    getEnv('UPLOAD_DIR') ?? join(process.cwd(), 'uploads');
+  const uploadDir = getEnv('UPLOAD_DIR') ?? join(process.cwd(), 'uploads');
   const maxFileSizeMb = getEnvNumber('MAX_FILE_SIZE_MB', 20);
   if (maxFileSizeMb <= 0) {
     writeAppLog({
       level: 'warn',
       event: 'env_warning',
-      message: 'MAX_FILE_SIZE_MB debe ser mayor a 0. Se usara el valor por defecto.',
+      message:
+        'MAX_FILE_SIZE_MB debe ser mayor a 0. Se usara el valor por defecto.',
     });
   }
 
@@ -94,6 +90,7 @@ async function bootstrap() {
   }
 
   if (nodeEnv === 'development') {
+    // Swagger is intentionally exposed only in development.
     const config = new DocumentBuilder()
       .setTitle('DMS API')
       .setDescription('Document Management System API')

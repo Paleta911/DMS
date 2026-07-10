@@ -6,8 +6,11 @@ import { PermissionRequest } from '../permissions/permission-request.entity';
 import { AuditLog } from '../audit-log/audit-log.entity';
 import { BackendMetricsService } from '../observability/backend-metrics.service';
 
+// Service-level aggregation tests for admin analytics summary composition.
 type QueryBuilderMock<T> = {
-  where: jest.MockedFunction<(query: string, params?: object) => QueryBuilderMock<T>>;
+  where: jest.MockedFunction<
+    (query: string, params?: object) => QueryBuilderMock<T>
+  >;
   andWhere: jest.MockedFunction<
     (query: string, params?: object) => QueryBuilderMock<T>
   >;
@@ -67,7 +70,9 @@ describe('AdminAnalyticsService', () => {
   let service: AdminAnalyticsService;
   let documentRepo: jest.Mocked<Partial<Repository<Document>>>;
   let userRepo: jest.Mocked<Partial<Repository<User>>>;
-  let permissionRequestRepo: jest.Mocked<Partial<Repository<PermissionRequest>>>;
+  let permissionRequestRepo: jest.Mocked<
+    Partial<Repository<PermissionRequest>>
+  >;
   let auditLogRepo: jest.Mocked<Partial<Repository<AuditLog>>>;
   let backendMetricsService: jest.Mocked<Partial<BackendMetricsService>>;
 

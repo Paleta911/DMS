@@ -3,4 +3,5 @@ export enum UserStatus {
   PendingApproval = 'PENDING_APPROVAL',
   Approved = 'APPROVED',
   Rejected = 'REJECTED',
+  Deleted = 'DELETED',
 }

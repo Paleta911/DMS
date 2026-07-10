@@ -1,4 +1,5 @@
-export function Spinner({ label = 'Cargando' }: { label?: string }) {
+// Simple accessible loading indicator used across async sections.
+export function Spinner({ label = "Cargando" }: { label?: string }) {
   return (
     <div
       role="status"

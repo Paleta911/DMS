@@ -1,7 +1,7 @@
-import type { ReactNode } from 'react';
-import { ResponsiveTable, type ResponsiveColumn } from '../ui/ResponsiveTable';
-import { ResultsToolbar } from './ResultsToolbar';
-import { SectionCard } from './SectionCard';
+import type { ReactNode } from "react";
+import { ResponsiveTable, type ResponsiveColumn } from "../ui/ResponsiveTable";
+import { ResultsToolbar } from "./ResultsToolbar";
+import { SectionCard } from "./SectionCard";
 
 type ToolbarProps = {
   summary: ReactNode;
@@ -19,6 +19,8 @@ type DataTableSectionProps<T> = {
   items: T[];
   getRowKey: (item: T) => string | number;
   renderMobileCard: (item: T) => ReactNode;
+  onRowClick?: (item: T) => void;
+  rowClassName?: string | ((item: T) => string | undefined);
   toolbar?: ToolbarProps;
   className?: string;
   tableProps?: {
@@ -36,12 +38,15 @@ export function DataTableSection<T>({
   items,
   getRowKey,
   renderMobileCard,
+  onRowClick,
+  rowClassName,
   toolbar,
   className,
   tableProps,
 }: DataTableSectionProps<T>) {
   return (
     <SectionCard className={className}>
+      {/* Optional toolbar keeps paging/summaries consistent across admin pages. */}
       {toolbar ? (
         <ResultsToolbar
           summary={toolbar.summary}
@@ -54,12 +59,15 @@ export function DataTableSection<T>({
           actions={toolbar.actions}
         />
       ) : null}
-      <div className={toolbar ? 'mt-4' : undefined}>
+      <div className={toolbar ? "mt-4" : undefined}>
+        {/* Shared ResponsiveTable wrapper centralizes table behavior/options. */}
         <ResponsiveTable
           columns={columns}
           items={items}
           getRowKey={getRowKey}
           renderMobileCard={renderMobileCard}
+          onRowClick={onRowClick}
+          rowClassName={rowClassName}
           ariaLabel={tableProps?.ariaLabel}
           caption={tableProps?.caption}
           maxDesktopHeightPx={tableProps?.maxDesktopHeightPx}

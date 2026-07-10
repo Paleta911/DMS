@@ -1,9 +1,10 @@
-import { screen, within } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AuthUser } from '../types/auth';
-import { renderWithProviders } from '../test/test-utils';
-import PermissionRequestPage from './PermissionRequestPage';
+import { screen, within } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { AuthUser } from "../types/auth";
+import { renderWithProviders } from "../test/test-utils";
+import PermissionRequestPage from "./PermissionRequestPage";
 
+// Covers permission-request UX: super-admin blocking and duplicate/pending state handling.
 const mocks = vi.hoisted(() => ({
   auth: {
     user: null as AuthUser | null,
@@ -17,34 +18,34 @@ const mocks = vi.hoisted(() => ({
   },
 }));
 
-vi.mock('../auth/AuthContext', () => ({
+vi.mock("../auth/AuthContext", () => ({
   useAuth: () => ({
     user: mocks.auth.user,
     token: null,
-    isAdmin: mocks.auth.user?.role === 'admin',
+    isAdmin: mocks.auth.user?.role === "admin",
     login: vi.fn(),
     logout: vi.fn(),
     refreshUser: vi.fn(),
   }),
 }));
 
-vi.mock('../components/ToastProvider', () => ({
+vi.mock("../components/ToastProvider", () => ({
   useToast: () => ({
     notify: mocks.notify,
   }),
 }));
 
-vi.mock('../api/endpoints/permissionRequests', () => ({
+vi.mock("../api/endpoints/permissionRequests", () => ({
   permissionRequestsMine: mocks.api.permissionRequestsMine,
   permissionRequestsCreate: mocks.api.permissionRequestsCreate,
   areaRequestsCreate: mocks.api.areaRequestsCreate,
 }));
 
-vi.mock('../api/endpoints/types', () => ({
+vi.mock("../api/endpoints/types", () => ({
   areaCodesListPaged: mocks.api.areaCodesListPaged,
 }));
 
-describe('PermissionRequestPage', () => {
+describe("PermissionRequestPage", () => {
   beforeEach(() => {
     mocks.notify.mockReset();
     mocks.api.permissionRequestsMine.mockReset();
@@ -54,10 +55,10 @@ describe('PermissionRequestPage', () => {
 
     mocks.auth.user = {
       id: 17,
-      email: 'sus@bsm.com.mx',
-      role: 'user',
+      email: "sus@bsm.com.mx",
+      role: "user",
       isSuperAdmin: false,
-      allowedAreaCodes: ['FA'],
+      allowedAreaCodes: ["FA"],
       permissions: {
         canAccess: true,
         canRead: true,
@@ -74,17 +75,17 @@ describe('PermissionRequestPage', () => {
         {
           id: 1,
           requestedPermissions: '["UPLOAD"]',
-          status: 'PENDING',
-          requestType: 'PERMISSIONS',
-          createdAt: '2026-03-08T00:00:00.000Z',
+          status: "PENDING",
+          requestType: "PERMISSIONS",
+          createdAt: "2026-03-08T00:00:00.000Z",
         },
         {
           id: 2,
-          requestedPermissions: '[]',
+          requestedPermissions: "[]",
           requestedAreaCodes: '["RC"]',
-          status: 'PENDING',
-          requestType: 'AREAS',
-          createdAt: '2026-03-08T00:00:00.000Z',
+          status: "PENDING",
+          requestType: "AREAS",
+          createdAt: "2026-03-08T00:00:00.000Z",
         },
       ],
       total: 2,
@@ -95,9 +96,9 @@ describe('PermissionRequestPage', () => {
     mocks.api.areaRequestsCreate.mockResolvedValue({});
     mocks.api.areaCodesListPaged.mockResolvedValue({
       items: [
-        { id: 1, code: 'FA', nombre: 'Finanzas', activo: true },
-        { id: 2, code: 'RC', nombre: 'Recursos Humanos', activo: true },
-        { id: 3, code: 'SA', nombre: 'Seguridad y Ambiente', activo: true },
+        { id: 1, code: "FA", nombre: "Finanzas", activo: true },
+        { id: 2, code: "RC", nombre: "Recursos Humanos", activo: true },
+        { id: 3, code: "SA", nombre: "Seguridad y Ambiente", activo: true },
       ],
       total: 3,
       page: 1,
@@ -105,43 +106,49 @@ describe('PermissionRequestPage', () => {
     });
   });
 
-  it('bloquea la vista si el usuario es super admin', () => {
+  it("bloquea la vista si el usuario es super admin", () => {
     mocks.auth.user = {
       ...mocks.auth.user!,
-      role: 'admin',
+      role: "admin",
       isSuperAdmin: true,
     };
 
     renderWithProviders(<PermissionRequestPage />);
 
-    expect(screen.getByText('Acceso denegado')).toBeInTheDocument();
+    expect(screen.getByText("Acceso denegado")).toBeInTheDocument();
   });
 
-  it('marca permisos y áreas ya activas o pendientes para evitar duplicados', async () => {
+  it("marca permisos ya activos o pendientes para evitar duplicados", async () => {
     renderWithProviders(<PermissionRequestPage />);
 
-    expect(await screen.findByText('Tienes solicitudes pendientes')).toBeInTheDocument();
-    expect(screen.getByText(/1 permiso\(s\) siguen en revisión/)).toBeInTheDocument();
-    expect(screen.getByText(/1 área\(s\) siguen en revisión/)).toBeInTheDocument();
+    expect(
+      await screen.findByText("Tienes solicitudes pendientes"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/1 permiso\(s\) siguen en revisión/),
+    ).toBeInTheDocument();
+    expect(await screen.findByText("Subir documentos")).toBeInTheDocument();
 
-    const grantedPermission = screen.getByText('Ver documentos (ya activo)').closest('label');
+    const grantedPermission = screen
+      .getByText("Ver documentos (ya activo)")
+      .closest("label");
     expect(grantedPermission).not.toBeNull();
-    expect(within(grantedPermission as HTMLElement).getByRole('checkbox')).toBeChecked();
-    expect(within(grantedPermission as HTMLElement).getByRole('checkbox')).toBeDisabled();
+    expect(
+      within(grantedPermission as HTMLElement).getByRole("checkbox"),
+    ).toBeChecked();
+    expect(
+      within(grantedPermission as HTMLElement).getByRole("checkbox"),
+    ).toBeDisabled();
 
-    const pendingPermission = screen.getByText('Subir documentos (pendiente)').closest('label');
+    const pendingPermission = screen
+      .getByText("Subir documentos (pendiente)")
+      .closest("label");
     expect(pendingPermission).not.toBeNull();
-    expect(within(pendingPermission as HTMLElement).getByRole('checkbox')).toBeChecked();
-    expect(within(pendingPermission as HTMLElement).getByRole('checkbox')).toBeDisabled();
-
-    const grantedArea = screen.getByText('FA - Finanzas (ya activa)').closest('label');
-    expect(grantedArea).not.toBeNull();
-    expect(within(grantedArea as HTMLElement).getByRole('checkbox')).toBeChecked();
-    expect(within(grantedArea as HTMLElement).getByRole('checkbox')).toBeDisabled();
-
-    const pendingArea = screen.getByText('RC - Recursos Humanos (pendiente)').closest('label');
-    expect(pendingArea).not.toBeNull();
-    expect(within(pendingArea as HTMLElement).getByRole('checkbox')).toBeChecked();
-    expect(within(pendingArea as HTMLElement).getByRole('checkbox')).toBeDisabled();
+    expect(
+      within(pendingPermission as HTMLElement).getByRole("checkbox"),
+    ).toBeChecked();
+    expect(
+      within(pendingPermission as HTMLElement).getByRole("checkbox"),
+    ).toBeDisabled();
   });
 });

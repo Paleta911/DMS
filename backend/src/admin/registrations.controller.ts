@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
@@ -105,6 +105,24 @@ export class RegistrationsController {
   @UseGuards(JwtAuthGuard, RolesGuard, SuperAdminGuard)
   @Roles(UserRole.Admin)
   @Throttle(adminRegistrationWriteThrottle)
+  @Post(':id/restore')
+  @ApiBearerAuth()
+  restore(
+    @Param('id') id: string,
+    @Req() req: Request & { user?: { id?: number } },
+  ) {
+    const adminId = req.user?.id ?? 0;
+    return this.registrationsService.restore({
+      id: Number(id),
+      adminId,
+      ip: req.ip,
+      userAgent: req.headers['user-agent'] as string | undefined,
+    });
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard, SuperAdminGuard)
+  @Roles(UserRole.Admin)
+  @Throttle(adminRegistrationWriteThrottle)
   @Post(':id/resend-code')
   @ApiBearerAuth()
   resend(
@@ -131,6 +149,42 @@ export class RegistrationsController {
   ) {
     const adminId = req.user?.id ?? 0;
     return this.registrationsService.forceVerify({
+      id: Number(id),
+      adminId,
+      ip: req.ip,
+      userAgent: req.headers['user-agent'] as string | undefined,
+    });
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard, SuperAdminGuard)
+  @Roles(UserRole.Admin)
+  @Throttle(adminRegistrationWriteThrottle)
+  @Delete(':id')
+  @ApiBearerAuth()
+  remove(
+    @Param('id') id: string,
+    @Req() req: Request & { user?: { id?: number } },
+  ) {
+    const adminId = req.user?.id ?? 0;
+    return this.registrationsService.remove({
+      id: Number(id),
+      adminId,
+      ip: req.ip,
+      userAgent: req.headers['user-agent'] as string | undefined,
+    });
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard, SuperAdminGuard)
+  @Roles(UserRole.Admin)
+  @Throttle(adminRegistrationWriteThrottle)
+  @Delete(':id/permanent')
+  @ApiBearerAuth()
+  removePermanent(
+    @Param('id') id: string,
+    @Req() req: Request & { user?: { id?: number } },
+  ) {
+    const adminId = req.user?.id ?? 0;
+    return this.registrationsService.removePermanent({
       id: Number(id),
       adminId,
       ip: req.ip,

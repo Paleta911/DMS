@@ -7,6 +7,12 @@ const DEFAULT_ALLOWED_MIME_BY_EXTENSION: Record<string, string[]> = {
   '.docx': [
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   ],
+  '.xls': [
+    'application/vnd.ms-excel',
+    'application/msexcel',
+    'application/x-msexcel',
+    'application/xls',
+  ],
   '.xlsx': [
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   ],
@@ -42,7 +48,9 @@ export const ALLOWED_MIME_TYPES = parseCsvSet(
 );
 
 export function sanitizeUploadOriginalName(originalName: string) {
-  const normalized = basename(String(originalName ?? '').normalize('NFKC')).trim();
+  const normalized = basename(
+    String(originalName ?? '').normalize('NFKC').replace(/\\/g, '/'),
+  ).trim();
   if (!normalized) {
     throw new BadRequestException('Nombre de archivo inválido');
   }

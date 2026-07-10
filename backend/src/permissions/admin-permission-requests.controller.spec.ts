@@ -5,6 +5,7 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { ROLES_KEY } from '../auth/roles.decorator';
 import { UserRole } from '../users/user-role.enum';
 
+// Metadata-level tests ensure admin endpoints remain protected by JWT + roles guard.
 describe('AdminPermissionRequestsController authz metadata', () => {
   const target = AdminPermissionRequestsController.prototype;
 

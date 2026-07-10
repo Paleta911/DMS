@@ -1,3 +1,5 @@
+// User access policy: determines system-level blocking reasons based on account status and permissions
+// Blocks access for unverified, unapproved, rejected, or deleted accounts; also checks Access permission
 import { ForbiddenException } from '@nestjs/common';
 import { PermissionKey, PERMISSION_FIELDS } from './permissions';
 import { UserStatus } from './user-status.enum';
@@ -19,13 +21,24 @@ type AccessBlockReason =
   | { reason: 'status'; message: string; status: UserStatus }
   | { reason: 'permission'; message: string; permission: PermissionKey.Access };
 
+// Evaluate if user has system access or is blocked by status/permission; returns reason if blocked
 export function getSystemAccessBlockReason(
   user: Pick<AccessUser, 'status' | 'canAccess'>,
 ): AccessBlockReason | null {
   if (user.status !== UserStatus.Approved) {
+    const statusMessage =
+      user.status === UserStatus.PendingVerification
+        ? 'Correo pendiente de verificación'
+        : user.status === UserStatus.PendingApproval
+          ? 'Cuenta pendiente de aprobación por el administrador'
+          : user.status === UserStatus.Rejected
+            ? 'Registro rechazado'
+            : user.status === UserStatus.Deleted
+              ? 'Cuenta suspendida por el administrador'
+              : 'Acceso no disponible';
     return {
       reason: 'status',
-      message: 'Cuenta pendiente de aprobación',
+      message: statusMessage,
       status: user.status,
     };
   }

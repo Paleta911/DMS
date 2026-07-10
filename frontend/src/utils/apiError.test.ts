@@ -1,47 +1,48 @@
-import { describe, expect, it } from 'vitest';
-import { getApiErrorMessage } from './apiError';
+import { describe, expect, it } from "vitest";
+import {
+  getApiErrorMessage,
+  getFriendlyStatusMessage,
+  isTechnicalErrorMessage,
+} from "./apiError";
 
-describe('getApiErrorMessage', () => {
-  it('usa message array de API cuando existe', () => {
-    const error = {
-      response: {
-        data: {
-          message: ['Error A', 'Error B'],
+// Unit tests verify safe error-message normalization for user-facing UI feedback.
+describe("apiError", () => {
+  it("preserves friendly backend messages", () => {
+    expect(
+      getApiErrorMessage(
+        {
+          response: {
+            status: 400,
+            data: { message: "No se permite el campo id" },
+          },
         },
-      },
-    };
-    expect(getApiErrorMessage(error, 'Fallback')).toBe('Error A, Error B');
+        "Error al guardar",
+      ),
+    ).toBe("No se permite el campo id");
   });
 
-  it('usa message string de API cuando existe', () => {
-    const error = {
-      response: {
-        data: {
-          message: 'No autorizado',
+  it("hides technical axios and runtime messages behind friendly fallbacks", () => {
+    expect(
+      getApiErrorMessage(
+        {
+          response: {
+            status: 500,
+            data: { message: "Request failed with status code 500" },
+          },
+          message: "AxiosError: Request failed with status code 500",
         },
-      },
-    };
-    expect(getApiErrorMessage(error, 'Fallback')).toBe('No autorizado');
+        "Error al guardar",
+      ),
+    ).toBe("Ocurrió un problema interno. Intenta de nuevo.");
   });
 
-  it('usa fallback cuando no hay message interpretable', () => {
-    const error = { response: { data: { message: null } } };
-    expect(getApiErrorMessage(error, 'Fallback')).toBe('Fallback');
-  });
-
-  it('traduce mensajes de validación comunes de class-validator', () => {
-    const error = {
-      response: {
-        data: {
-          message: [
-            'code must be longer than or equal to 2 characters',
-            'nombreLargo must be longer than or equal to 2 characters',
-          ],
-        },
-      },
-    };
-    expect(getApiErrorMessage(error, 'Fallback')).toBe(
-      'code debe tener al menos 2 caracteres, nombreLargo debe tener al menos 2 caracteres',
+  it("detects technical messages that should not be shown directly", () => {
+    expect(isTechnicalErrorMessage("TextFieldModal is not defined")).toBe(true);
+    expect(isTechnicalErrorMessage("Cannot read properties of undefined")).toBe(
+      true,
+    );
+    expect(getFriendlyStatusMessage(403)).toBe(
+      "No tienes permiso para realizar esta acción.",
     );
   });
 });

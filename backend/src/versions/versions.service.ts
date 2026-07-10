@@ -1,4 +1,5 @@
-// src/versions/versions.service.ts
+// Document versions facade: delegates version history queries and creation to specialized services
+// Handles document version tracking, area code retrieval, and document status lookups
 
 import { Injectable } from '@nestjs/common';
 import { VersionsMutationService } from './versions-mutation.service';
@@ -27,6 +28,10 @@ export class VersionsService {
 
   async findById(id: number) {
     return this.queryService.findById(id);
+  }
+
+  async findDocumentStatus(documentId: number) {
+    return this.queryService.findDocumentStatus(documentId);
   }
 
   async getDocumentAreaCode(documentId: number) {

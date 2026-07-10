@@ -15,6 +15,7 @@ import { RefreshTokenDto } from './dto/refresh-token.dto';
 import type { JwtPayload } from './jwt.strategy';
 import { getRequiredEnv } from '../common/security-config.utils';
 import type { StringValue } from 'ms';
+import { UserStatus } from '../users/user-status.enum';
 
 @Injectable()
 export class AuthLoginService {
@@ -25,6 +26,25 @@ export class AuthLoginService {
   ) {}
 
   async login(dto: LoginDto, meta?: { ip?: string; userAgent?: string }) {
+    // Hard-stop login for permanently removed accounts before password checks.
+    const permanentlyDeletedRecord =
+      await this.findPermanentlyDeletedRecordByEmail(dto.email);
+    if (permanentlyDeletedRecord) {
+      await this.auditLogService.log({
+        action: 'ACCESS_DENIED',
+        resourceType: 'auth',
+        meta: {
+          email: dto.email,
+          reason: 'permanently_deleted_account',
+          deletedAt:
+            permanentlyDeletedRecord.deletedAt?.toISOString?.() ?? null,
+        },
+        ip: meta?.ip,
+        userAgent: meta?.userAgent,
+      });
+      throw this.buildAccountRemovedException();
+    }
+
     const user = await this.usersService.findByEmailWithPassword(dto.email);
     if (!user) {
       await this.auditLogService.log({
@@ -37,11 +57,24 @@ export class AuthLoginService {
       throw new UnauthorizedException('Credenciales invalidas');
     }
 
+    if (user.status === UserStatus.Deleted) {
+      await this.auditLogService.log({
+        userId: user.id,
+        action: 'ACCESS_DENIED',
+        resourceType: 'auth',
+        meta: { email: user.email, reason: 'suspended_account' },
+        ip: meta?.ip,
+        userAgent: meta?.userAgent,
+      });
+      throw this.buildAccountSuspendedException();
+    }
+
     this.ensureNotTemporarilyBlocked(user, meta);
 
     const isValid = await bcrypt.compare(dto.password, user.passwordHash);
     if (!isValid) {
-      const updatedUser = await this.usersService.recordFailedLoginAttempt(user);
+      const updatedUser =
+        await this.usersService.recordFailedLoginAttempt(user);
       await this.auditLogService.log({
         userId: user.id,
         action: 'AUTH_LOGIN_FAIL',
@@ -49,12 +82,16 @@ export class AuthLoginService {
         meta: {
           email: dto.email,
           failedLoginAttempts: updatedUser.failedLoginAttempts,
-          loginBlockedUntil: updatedUser.loginBlockedUntil?.toISOString() ?? null,
+          loginBlockedUntil:
+            updatedUser.loginBlockedUntil?.toISOString() ?? null,
         },
         ip: meta?.ip,
         userAgent: meta?.userAgent,
       });
-      if (updatedUser.loginBlockedUntil) {
+      if (
+        updatedUser.loginBlockedUntil &&
+        updatedUser.loginBlockedUntil.getTime() > Date.now()
+      ) {
         throw this.buildLoginBlockedException(updatedUser.loginBlockedUntil);
       }
       throw new UnauthorizedException('Credenciales invalidas');
@@ -111,9 +148,12 @@ export class AuthLoginService {
   ) {
     let payload: JwtPayload;
     try {
-      payload = await this.jwtService.verifyAsync<JwtPayload>(dto.refreshToken, {
-        secret: this.getRefreshTokenSecret(),
-      });
+      payload = await this.jwtService.verifyAsync<JwtPayload>(
+        dto.refreshToken,
+        {
+          secret: this.getRefreshTokenSecret(),
+        },
+      );
     } catch {
       await this.auditLogService.log({
         action: 'AUTH_REFRESH_FAIL',
@@ -122,12 +162,45 @@ export class AuthLoginService {
         ip: meta?.ip,
         userAgent: meta?.userAgent,
       });
-      throw new UnauthorizedException('Sesion expirada. Inicia sesión nuevamente');
+      throw new UnauthorizedException(
+        'Sesion expirada. Inicia sesión nuevamente',
+      );
     }
 
     const user = await this.usersService.findById(payload.sub);
     if (!user) {
-      throw new UnauthorizedException('Sesion expirada. Inicia sesión nuevamente');
+      const permanentlyDeletedRecord =
+        await this.findPermanentlyDeletedRecordByEmail(payload.email);
+      if (permanentlyDeletedRecord) {
+        await this.auditLogService.log({
+          action: 'ACCESS_DENIED',
+          resourceType: 'auth',
+          meta: {
+            email: payload.email,
+            reason: 'permanently_deleted_account',
+            deletedAt:
+              permanentlyDeletedRecord.deletedAt?.toISOString?.() ?? null,
+          },
+          ip: meta?.ip,
+          userAgent: meta?.userAgent,
+        });
+        throw this.buildAccountRemovedException();
+      }
+      throw new UnauthorizedException(
+        'Sesion expirada. Inicia sesión nuevamente',
+      );
+    }
+
+    if (user.status === UserStatus.Deleted) {
+      await this.auditLogService.log({
+        userId: user.id,
+        action: 'ACCESS_DENIED',
+        resourceType: 'auth',
+        meta: { email: user.email, reason: 'suspended_account' },
+        ip: meta?.ip,
+        userAgent: meta?.userAgent,
+      });
+      throw this.buildAccountSuspendedException();
     }
 
     this.ensureNotTemporarilyBlocked(user, meta);
@@ -177,6 +250,7 @@ export class AuthLoginService {
     },
     meta?: { ip?: string; userAgent?: string },
   ) {
+    // Block window is enforced on both login and refresh to prevent bypass.
     const blockedUntil = user.loginBlockedUntil;
     if (!blockedUntil) {
       return;
@@ -200,18 +274,61 @@ export class AuthLoginService {
 
   private buildLoginBlockedException(blockedUntil: Date) {
     const remainingMs = Math.max(0, blockedUntil.getTime() - Date.now());
+    const remainingSec = Math.max(1, Math.ceil(remainingMs / 1000));
     const remainingMin = Math.max(1, Math.ceil(remainingMs / 60000));
     return new HttpException(
-      `Cuenta bloqueada temporalmente por intentos fallidos. Intenta de nuevo en ${remainingMin} minuto(s)`,
+      {
+        statusCode: 429,
+        code: 'AUTH_LOGIN_ACCOUNT_BLOCKED',
+        message: `Cuenta bloqueada temporalmente por intentos fallidos. Intenta de nuevo en ${remainingMin} minuto(s)`,
+        remainingSec,
+        blockedUntil: blockedUntil.toISOString(),
+      },
       429,
     );
   }
 
+  private buildAccountSuspendedException() {
+    return new HttpException(
+      {
+        statusCode: 403,
+        code: 'AUTH_ACCOUNT_SUSPENDED',
+        message: 'Cuenta suspendida por el administrador',
+      },
+      403,
+    );
+  }
+
+  private buildAccountRemovedException() {
+    return new HttpException(
+      {
+        statusCode: 403,
+        code: 'AUTH_ACCOUNT_REMOVED',
+        message: 'Cuenta eliminada por el administrador',
+      },
+      403,
+    );
+  }
+
+  private async findPermanentlyDeletedRecordByEmail(email: string) {
+    const lookup = (
+      this.usersService as UsersService & {
+        findPermanentlyDeletedByEmail?: (value: string) => Promise<unknown>;
+      }
+    ).findPermanentlyDeletedByEmail;
+    if (typeof lookup !== 'function') {
+      return null;
+    }
+    return lookup.call(this.usersService, email);
+  }
+
   private async signAuthTokens(payload: JwtPayload) {
+    // Refresh token can use an independent secret/ttl when configured.
     const accessToken = await this.jwtService.signAsync(payload);
     const refreshToken = await this.jwtService.signAsync(payload, {
       secret: this.getRefreshTokenSecret(),
-      expiresIn: (getEnv('JWT_REFRESH_EXPIRES_IN', '7d') ?? '7d') as StringValue,
+      expiresIn: (getEnv('JWT_REFRESH_EXPIRES_IN', '7d') ??
+        '7d') as StringValue,
     });
     return {
       accessToken,

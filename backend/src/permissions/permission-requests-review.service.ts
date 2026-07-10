@@ -16,6 +16,7 @@ import { AuditLogService } from '../audit-log/audit-log.service';
 import { AreaCodesService } from '../area-codes/area-codes.service';
 import { UserAdminPolicyService } from '../users/user-admin-policy.service';
 
+// Review service processes admin decisions (approve/reject/partial-approve) in DB transactions.
 @Injectable()
 export class PermissionRequestsReviewService {
   constructor(
@@ -28,7 +29,13 @@ export class PermissionRequestsReviewService {
     private readonly userAdminPolicyService: UserAdminPolicyService,
   ) {}
 
-  async approveRequest(params: { id: number; adminId: number; ip?: string; userAgent?: string }) {
+  async approveRequest(params: {
+    id: number;
+    adminId: number;
+    ip?: string;
+    userAgent?: string;
+  }) {
+    // Transaction keeps request status and user permission/area updates consistent.
     return this.dataSource.transaction(async (manager) => {
       const requestRepo = manager.getRepository(PermissionRequest);
       const request = await requestRepo.findOne({
@@ -50,21 +57,31 @@ export class PermissionRequestsReviewService {
       let approvedMeta: Record<string, unknown> = {};
 
       if (request.requestType === PermissionRequestType.Areas) {
+        // Area requests merge requested areas with existing assignments.
         let requestedAreaCodes: string[] = [];
         try {
-          requestedAreaCodes = JSON.parse(request.requestedAreaCodes ?? '[]') as string[];
+          requestedAreaCodes = JSON.parse(
+            request.requestedAreaCodes ?? '[]',
+          ) as string[];
         } catch {
           requestedAreaCodes = [];
         }
         const allAreas = await this.areaCodesService.findActiveList();
         const requestedAreaSet = new Set(
-          requestedAreaCodes.map((code) => code.toUpperCase().trim()).filter(Boolean),
+          requestedAreaCodes
+            .map((code) => code.toUpperCase().trim())
+            .filter(Boolean),
         );
-        const areasToAssign = allAreas.filter((area) => requestedAreaSet.has(area.code));
+        const areasToAssign = allAreas.filter((area) =>
+          requestedAreaSet.has(area.code),
+        );
         if (areasToAssign.length === 0) {
           throw new BadRequestException('Solicitud sin áreas válidas');
         }
-        const userWithAreas = await this.usersService.findByIdWithAreas(user.id, manager);
+        const userWithAreas = await this.usersService.findByIdWithAreas(
+          user.id,
+          manager,
+        );
         if (!userWithAreas) {
           throw new NotFoundException('Usuario no encontrado');
         }
@@ -80,9 +97,12 @@ export class PermissionRequestsReviewService {
           areaCodes: areasToAssign.map((area) => area.code),
         };
       } else {
+        // Permission requests flip corresponding boolean flags on user.
         let permissions: PermissionKey[] = [];
         try {
-          permissions = JSON.parse(request.requestedPermissions) as PermissionKey[];
+          permissions = JSON.parse(
+            request.requestedPermissions,
+          ) as PermissionKey[];
         } catch {
           permissions = [];
         }
@@ -93,7 +113,10 @@ export class PermissionRequestsReviewService {
           }
         }
         await this.usersService.saveUser(user, manager);
-        approvedMeta = { requestType: PermissionRequestType.Permissions, permissions };
+        approvedMeta = {
+          requestType: PermissionRequestType.Permissions,
+          permissions,
+        };
       }
 
       request.status = PermissionRequestStatus.Approved;
@@ -101,15 +124,18 @@ export class PermissionRequestsReviewService {
       request.reviewedById = params.adminId;
       await requestRepo.save(request);
 
-      await this.auditLogService.log({
-        userId: params.adminId,
-        action: 'PERMISSION_REQUEST_APPROVED',
-        resourceType: 'permission_request',
-        resourceId: request.id,
-        meta: { userId: user.id, ...approvedMeta },
-        ip: params.ip,
-        userAgent: params.userAgent,
-      }, manager);
+      await this.auditLogService.log(
+        {
+          userId: params.adminId,
+          action: 'PERMISSION_REQUEST_APPROVED',
+          resourceType: 'permission_request',
+          resourceId: request.id,
+          meta: { userId: user.id, ...approvedMeta },
+          ip: params.ip,
+          userAgent: params.userAgent,
+        },
+        manager,
+      );
 
       return request;
     });
@@ -123,6 +149,7 @@ export class PermissionRequestsReviewService {
     ip?: string;
     userAgent?: string;
   }) {
+    // Partial approval supports approving subset of requested areas and leaving remainder pending.
     return this.dataSource.transaction(async (manager) => {
       const requestRepo = manager.getRepository(PermissionRequest);
       const request = await requestRepo.findOne({
@@ -136,26 +163,40 @@ export class PermissionRequestsReviewService {
         throw new BadRequestException('Solicitud ya fue procesada');
       }
       if (request.requestType !== PermissionRequestType.Areas) {
-        throw new BadRequestException('Aprobación parcial solo aplica para solicitudes de áreas');
+        throw new BadRequestException(
+          'Aprobación parcial solo aplica para solicitudes de áreas',
+        );
       }
 
       const normalizedToApprove = Array.from(
-        new Set(params.areaCodes.map((code) => code.toUpperCase().trim()).filter(Boolean)),
+        new Set(
+          params.areaCodes
+            .map((code) => code.toUpperCase().trim())
+            .filter(Boolean),
+        ),
       );
       if (normalizedToApprove.length === 0) {
-        throw new BadRequestException('Selecciona al menos un área para aprobar');
+        throw new BadRequestException(
+          'Selecciona al menos un área para aprobar',
+        );
       }
 
       let requestedAreaCodes: string[] = [];
       try {
-        requestedAreaCodes = JSON.parse(request.requestedAreaCodes ?? '[]') as string[];
+        requestedAreaCodes = JSON.parse(
+          request.requestedAreaCodes ?? '[]',
+        ) as string[];
       } catch {
         requestedAreaCodes = [];
       }
       const requestedSet = new Set(
-        requestedAreaCodes.map((code) => code.toUpperCase().trim()).filter(Boolean),
+        requestedAreaCodes
+          .map((code) => code.toUpperCase().trim())
+          .filter(Boolean),
       );
-      const invalid = normalizedToApprove.filter((code) => !requestedSet.has(code));
+      const invalid = normalizedToApprove.filter(
+        (code) => !requestedSet.has(code),
+      );
       if (invalid.length > 0) {
         throw new BadRequestException(
           `No pertenecen a esta solicitud: ${invalid.join(', ')}`,
@@ -169,7 +210,9 @@ export class PermissionRequestsReviewService {
         .filter((area): area is NonNullable<typeof area> => Boolean(area));
 
       if (areasToAssign.length === 0) {
-        throw new BadRequestException('No se encontraron áreas válidas para aprobar');
+        throw new BadRequestException(
+          'No se encontraron áreas válidas para aprobar',
+        );
       }
 
       const user = request.user;
@@ -178,7 +221,10 @@ export class PermissionRequestsReviewService {
         'No se puede modificar permisos de admins',
       );
 
-      const userWithAreas = await this.usersService.findByIdWithAreas(user.id, manager);
+      const userWithAreas = await this.usersService.findByIdWithAreas(
+        user.id,
+        manager,
+      );
       if (!userWithAreas) {
         throw new NotFoundException('Usuario no encontrado');
       }
@@ -205,28 +251,38 @@ export class PermissionRequestsReviewService {
       }
       await requestRepo.save(request);
 
-      await this.auditLogService.log({
-        userId: params.adminId,
-        action: 'PERMISSION_REQUEST_APPROVED',
-        resourceType: 'permission_request',
-        resourceId: request.id,
-        meta: {
-          userId: user.id,
-          requestType: PermissionRequestType.Areas,
-          partial: true,
-          approvedAreaCodes: normalizedToApprove,
-          remainingAreaCodes: remaining,
-          note: params.note?.trim() || null,
+      await this.auditLogService.log(
+        {
+          userId: params.adminId,
+          action: 'PERMISSION_REQUEST_APPROVED',
+          resourceType: 'permission_request',
+          resourceId: request.id,
+          meta: {
+            userId: user.id,
+            requestType: PermissionRequestType.Areas,
+            partial: true,
+            approvedAreaCodes: normalizedToApprove,
+            remainingAreaCodes: remaining,
+            note: params.note?.trim() || null,
+          },
+          ip: params.ip,
+          userAgent: params.userAgent,
         },
-        ip: params.ip,
-        userAgent: params.userAgent,
-      }, manager);
+        manager,
+      );
 
       return request;
     });
   }
 
-  async rejectRequest(params: { id: number; adminId: number; reason?: string; ip?: string; userAgent?: string }) {
+  async rejectRequest(params: {
+    id: number;
+    adminId: number;
+    reason?: string;
+    ip?: string;
+    userAgent?: string;
+  }) {
+    // Reject keeps request history while preventing further processing.
     return this.dataSource.transaction(async (manager) => {
       const requestRepo = manager.getRepository(PermissionRequest);
       const request = await requestRepo.findOne({
@@ -245,15 +301,21 @@ export class PermissionRequestsReviewService {
       request.reviewReason = params.reason ?? null;
       await requestRepo.save(request);
 
-      await this.auditLogService.log({
-        userId: params.adminId,
-        action: 'PERMISSION_REQUEST_REJECTED',
-        resourceType: 'permission_request',
-        resourceId: request.id,
-        meta: { userId: request.user?.id ?? null, reason: params.reason ?? null },
-        ip: params.ip,
-        userAgent: params.userAgent,
-      }, manager);
+      await this.auditLogService.log(
+        {
+          userId: params.adminId,
+          action: 'PERMISSION_REQUEST_REJECTED',
+          resourceType: 'permission_request',
+          resourceId: request.id,
+          meta: {
+            userId: request.user?.id ?? null,
+            reason: params.reason ?? null,
+          },
+          ip: params.ip,
+          userAgent: params.userAgent,
+        },
+        manager,
+      );
 
       return request;
     });

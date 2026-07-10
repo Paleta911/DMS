@@ -2,6 +2,7 @@ import { BackendMetricsService } from './backend-metrics.service';
 import { HttpMetricsService } from './http-metrics.service';
 import { PrometheusMetricsService } from './prometheus-metrics.service';
 
+// Validates Prometheus exporter emits expected metric families and labels.
 describe('PrometheusMetricsService', () => {
   it('expone metricas http, runtime y busqueda en formato Prometheus', async () => {
     const httpMetrics = new HttpMetricsService();

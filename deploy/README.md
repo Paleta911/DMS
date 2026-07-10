@@ -83,6 +83,7 @@ docker compose -f docker-compose.release.yml -f docker-compose.staging.yml exec 
 
 ## Seguridad
 - Define `JWT_SECRET` y `JWT_REFRESH_SECRET` distintos y fuertes.
+- No subas archivos `.env` reales al repositorio. Usa los `.env*.example` solo como plantilla y guarda los valores reales en el servidor o en GitHub Secrets.
 - No uses `CORS_ORIGIN=*` en produccion.
 - Define `BOOTSTRAP_TOKEN` y retiralo cuando el bootstrap inicial ya no sea necesario.
 - Usa `EMAIL_MODE=smtp` con `SMTP_HOST` y `SMTP_FROM` configurados; `console` solo es valido en desarrollo.

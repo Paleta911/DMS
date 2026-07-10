@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
-import { Button } from './Button';
-import { useFeatureFlag } from '../../features/FeatureFlagsProvider';
-import { useI18n } from '../../i18n/I18nProvider';
+import { useEffect, useRef, useState } from "react";
+import { Button } from "./Button";
+import { useFeatureFlag } from "../../features/FeatureFlagsProvider";
+import { useI18n } from "../../i18n/I18nProvider";
 
+// Dropdown menu for export actions (CSV/JSON/etc.) gated by advanced-exports feature flag.
 export type ExportOption = {
   key: string;
   label: string;
@@ -19,20 +20,21 @@ export function ExportMenu({
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
-  const advancedExportsEnabled = useFeatureFlag('advanced-exports');
+  const advancedExportsEnabled = useFeatureFlag("advanced-exports");
   const { t } = useI18n();
 
   useEffect(() => {
     if (!open) {
       return;
     }
+    // Close menu when user clicks outside the menu root.
     const onPointerDown = (event: MouseEvent) => {
       if (!rootRef.current?.contains(event.target as Node)) {
         setOpen(false);
       }
     };
-    window.addEventListener('mousedown', onPointerDown);
-    return () => window.removeEventListener('mousedown', onPointerDown);
+    window.addEventListener("mousedown", onPointerDown);
+    return () => window.removeEventListener("mousedown", onPointerDown);
   }, [open]);
 
   if (!advancedExportsEnabled) {
@@ -48,7 +50,7 @@ export function ExportMenu({
         aria-expanded={open}
         aria-haspopup="menu"
       >
-        {label ?? t('export.label')}
+        {label ?? t("export.label")}
       </Button>
       {open ? (
         <div

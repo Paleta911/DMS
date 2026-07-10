@@ -6,6 +6,16 @@ function toWebServerEnv(env: NodeJS.ProcessEnv) {
   );
 }
 
+function extendCorsOrigins(...origins: string[]) {
+  const currentOrigins = (process.env.CORS_ORIGIN ?? '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+  const nextOrigins = new Set(currentOrigins);
+  origins.forEach((origin) => nextOrigins.add(origin));
+  return Array.from(nextOrigins).join(',');
+}
+
 const backendEnv = {
   ...toWebServerEnv(process.env),
   NODE_ENV: 'development',
@@ -18,6 +28,7 @@ const backendEnv = {
   JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN ?? '60s',
   JWT_ACCESS_EXPIRES_IN_SEC: process.env.JWT_ACCESS_EXPIRES_IN_SEC ?? '60',
   JWT_REFRESH_EXPIRES_IN: process.env.JWT_REFRESH_EXPIRES_IN ?? '1d',
+  CORS_ORIGIN: extendCorsOrigins('http://127.0.0.1:4173', 'http://localhost:4173'),
 };
 
 export default defineConfig({

@@ -2,6 +2,7 @@ import { mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
+// Minimal PDF generator for deterministic upload fixtures in browser e2e tests.
 function buildPdfBuffer(text: string) {
   const safeText = String(text).replace(/([()\\])/g, '\\$1');
   const parts: string[] = [];
@@ -13,6 +14,7 @@ function buildPdfBuffer(text: string) {
   };
 
   push('%PDF-1.4\n');
+  // Cada objeto guarda su offset para construir xref valido al final del archivo.
   offsets[1] = offset;
   push('1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n');
   offsets[2] = offset;
@@ -27,8 +29,11 @@ function buildPdfBuffer(text: string) {
     `4 0 obj\n<< /Length ${Buffer.byteLength(stream, 'ascii')} >>\nstream\n${stream}endstream\nendobj\n`,
   );
   offsets[5] = offset;
-  push('5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n');
+  push(
+    '5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n',
+  );
   const xrefOffset = offset;
+  // xref + trailer permiten que lectores PDF ubiquen objetos eficientemente.
   push('xref\n0 6\n0000000000 65535 f \n');
   for (let index = 1; index <= 5; index += 1) {
     push(`${String(offsets[index]).padStart(10, '0')} 00000 n \n`);
@@ -39,6 +44,7 @@ function buildPdfBuffer(text: string) {
 }
 
 export async function createPdfFixture(name: string, text: string) {
+  // Create temporary file per test run to avoid cross-test collisions.
   const dir = await mkdtemp(path.join(tmpdir(), 'dms-e2e-'));
   const filePath = path.join(dir, name);
   await writeFile(filePath, buildPdfBuffer(text));

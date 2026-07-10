@@ -9,6 +9,7 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { FeatureFlagsService } from '../platform/feature-flags.service';
 
+// Admin-only audit controller: list records and export in CSV/JSON formats.
 @ApiTags('audit-logs')
 @Controller('audit-logs')
 export class AuditLogController {
@@ -38,8 +39,12 @@ export class AuditLogController {
       String(now.getDate()).padStart(2, '0'),
     ].join('-');
 
+    // UTF-8 BOM improves compatibility with spreadsheet tools and accented text.
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-    res.setHeader('Content-Disposition', `attachment; filename="auditoria-${datePart}.csv"`);
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="auditoria-${datePart}.csv"`,
+    );
     res.send(`\uFEFF${csv}`);
   }
 
@@ -48,6 +53,7 @@ export class AuditLogController {
   @Get('export.json')
   @ApiBearerAuth()
   async exportJson(@Query() query: AuditLogQueryDto, @Res() res: Response) {
+    // JSON export is feature-flagged for controlled rollout.
     this.featureFlagsService.assertEnabled(
       'audit-json-export',
       'La exportacion JSON de auditoria no esta habilitada',
@@ -61,7 +67,10 @@ export class AuditLogController {
     ].join('-');
 
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
-    res.setHeader('Content-Disposition', `attachment; filename="auditoria-${datePart}.json"`);
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="auditoria-${datePart}.json"`,
+    );
     res.send(JSON.stringify(payload, null, 2));
   }
 }

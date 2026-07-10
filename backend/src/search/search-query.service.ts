@@ -1,14 +1,27 @@
-import {
-  Injectable,
-  ServiceUnavailableException,
-} from '@nestjs/common';
+import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Brackets, Repository } from 'typeorm';
+import { Brackets, In, Repository } from 'typeorm';
 import { Document } from '../documents/document.entity';
 import { Version } from '../versions/version.entity';
 import { writeAppLog } from '../common/logging.utils';
 import { BackendMetricsService } from '../observability/backend-metrics.service';
 import { SearchEngineService } from './search-engine.service';
+import { DocumentStatus } from '../documents/document-status.enum';
+import { DocumentVisibilityService } from '../document-visibility/document-visibility.service';
+
+function normalizeDateRangeStart(value?: string) {
+  if (!value) {
+    return undefined;
+  }
+  return new Date(`${value}T00:00:00.000Z`).toISOString();
+}
+
+function normalizeDateRangeEnd(value?: string) {
+  if (!value) {
+    return undefined;
+  }
+  return new Date(`${value}T23:59:59.999Z`).toISOString();
+}
 
 @Injectable()
 export class SearchQueryService {
@@ -19,6 +32,7 @@ export class SearchQueryService {
     @InjectRepository(Version)
     private readonly versionRepo: Repository<Version>,
     private readonly backendMetricsService: BackendMetricsService,
+    private readonly documentVisibilityService: DocumentVisibilityService,
   ) {}
 
   async search(params: {
@@ -26,7 +40,9 @@ export class SearchQueryService {
     categoryId?: string;
     documentTypeCode?: string;
     areaCode?: string;
+    status?: DocumentStatus;
     allowedAreaCodes?: string[] | null;
+    includeHiddenStatuses?: boolean;
     from?: string;
     to?: string;
     page?: number;
@@ -38,6 +54,7 @@ export class SearchQueryService {
     page: number;
     limit: number;
   }> {
+    // Explicit fallback mode bypasses Elastic checks entirely.
     if (this.searchEngineService.isFallbackMode()) {
       writeAppLog({
         level: 'warn',
@@ -63,6 +80,21 @@ export class SearchQueryService {
     }
 
     if (params.allowedAreaCodes && params.allowedAreaCodes.length === 0) {
+      return {
+        engine: 'elastic',
+        items: [],
+        total: 0,
+        page: params.page ?? 1,
+        limit: params.limit ?? 20,
+      };
+    }
+
+    const visibleStatuses =
+      await this.documentVisibilityService.getVisibleStatusesForActor(
+        params.includeHiddenStatuses,
+      );
+    // Visibility policy is enforced before hitting Elastic to avoid leaking hidden states.
+    if (!params.includeHiddenStatuses && visibleStatuses.length === 0) {
       return {
         engine: 'elastic',
         items: [],
@@ -110,16 +142,33 @@ export class SearchQueryService {
       filter.push({ term: { areaCode: params.areaCode.toUpperCase() } });
     }
 
+    if (
+      params.status &&
+      !params.includeHiddenStatuses &&
+      !visibleStatuses.includes(params.status)
+    ) {
+      return {
+        engine: 'elastic',
+        items: [],
+        total: 0,
+        page: params.page ?? 1,
+        limit: params.limit ?? 20,
+      };
+    }
+
     if (params.allowedAreaCodes) {
       filter.push({ terms: { areaCode: params.allowedAreaCodes } });
     }
 
-    if (params.from || params.to) {
+    const searchFrom = normalizeDateRangeStart(params.from);
+    const searchTo = normalizeDateRangeEnd(params.to);
+
+    if (searchFrom || searchTo) {
       filter.push({
         range: {
-          createdAt: {
-            gte: params.from,
-            lte: params.to,
+          updatedAt: {
+            gte: searchFrom,
+            lte: searchTo,
           },
         },
       });
@@ -127,7 +176,8 @@ export class SearchQueryService {
 
     const page = params.page ?? 1;
     const limit = params.limit ?? 20;
-    const from = (page - 1) * limit;
+    const offset = (page - 1) * limit;
+    const candidateSize = Math.min(Math.max(offset + limit * 5, limit), 200);
 
     try {
       const boolQuery: Record<string, unknown> = { filter };
@@ -138,21 +188,29 @@ export class SearchQueryService {
 
       const response = await this.searchEngineService.getClient().search({
         index: this.searchEngineService.getIndexName(),
-        from,
-        size: limit,
+        from: 0,
+        size: candidateSize,
         query: { bool: boolQuery },
       });
 
-      const hits = response.hits.hits.map((hit) => ({
+      const rawHits = response.hits.hits.map((hit) => ({
         score: hit._score,
         ...(hit._source as Record<string, unknown>),
       }));
+      const hits = await this.reconcileElasticHits(rawHits, {
+        visibleStatuses,
+        includeHiddenStatuses: params.includeHiddenStatuses,
+        requestedStatus: params.status,
+      });
       this.backendMetricsService.recordSearchQuery('elastic');
 
       return {
         engine: 'elastic',
-        items: hits,
-        total: response.hits.total ?? 0,
+        items: hits.slice(offset, offset + limit),
+        total:
+          hits.length < candidateSize
+            ? hits.length
+            : (response.hits.total ?? 0),
         page,
         limit,
       };
@@ -181,7 +239,9 @@ export class SearchQueryService {
     categoryId?: string;
     documentTypeCode?: string;
     areaCode?: string;
+    status?: DocumentStatus;
     allowedAreaCodes?: string[] | null;
+    includeHiddenStatuses?: boolean;
     from?: string;
     to?: string;
     page?: number;
@@ -193,10 +253,18 @@ export class SearchQueryService {
     page: number;
     limit: number;
   }> {
+    // SQL fallback mirrors Elastic filters so behavior remains consistent when ES is down.
     const page = params.page ?? 1;
     const limit = params.limit ?? 20;
     const skip = (page - 1) * limit;
     const qb = this.buildFallbackQuery(params);
+    const visibleStatuses =
+      await this.documentVisibilityService.getVisibleStatusesForActor(
+        params.includeHiddenStatuses,
+      );
+    if (!params.includeHiddenStatuses && visibleStatuses.length === 0) {
+      return { engine: 'fallback', items: [], total: 0, page, limit };
+    }
 
     if (params.categoryId) {
       qb.andWhere('category.id = :categoryId', {
@@ -216,6 +284,22 @@ export class SearchQueryService {
       });
     }
 
+    if (params.status) {
+      if (
+        !params.includeHiddenStatuses &&
+        !visibleStatuses.includes(params.status)
+      ) {
+        return { engine: 'fallback', items: [], total: 0, page, limit };
+      }
+      qb.andWhere('document.status = :status', {
+        status: params.status,
+      });
+    } else if (!params.includeHiddenStatuses) {
+      qb.andWhere('document.status IN (:...visibleStatuses)', {
+        visibleStatuses,
+      });
+    }
+
     if (params.allowedAreaCodes) {
       if (params.allowedAreaCodes.length === 0) {
         return { engine: 'fallback', items: [], total: 0, page, limit };
@@ -225,12 +309,14 @@ export class SearchQueryService {
       });
     }
 
-    if (params.from) {
-      qb.andWhere('document.createdAt >= :from', { from: params.from });
+    const from = normalizeDateRangeStart(params.from);
+    if (from) {
+      qb.andWhere('document.updatedAt >= :from', { from });
     }
 
-    if (params.to) {
-      qb.andWhere('document.createdAt <= :to', { to: params.to });
+    const to = normalizeDateRangeEnd(params.to);
+    if (to) {
+      qb.andWhere('document.updatedAt <= :to', { to });
     }
 
     const total = await qb
@@ -238,7 +324,10 @@ export class SearchQueryService {
       .select('document.id')
       .distinct(true)
       .getCount();
-    const { entities: documents } = await qb.skip(skip).take(limit).getRawAndEntities();
+    const { entities: documents } = await qb
+      .skip(skip)
+      .take(limit)
+      .getRawAndEntities();
 
     const ids = documents.map((document) => document.id);
     const latestByDocument = new Map<number, Version>();
@@ -273,6 +362,7 @@ export class SearchQueryService {
       return {
         documentId: String(document.id),
         codigo: document.codigo ?? null,
+        isInternal: document.isInternal,
         nombre: document.nombre,
         score: null,
         status: document.status,
@@ -304,7 +394,9 @@ export class SearchQueryService {
     categoryId?: string;
     documentTypeCode?: string;
     areaCode?: string;
+    status?: DocumentStatus;
     allowedAreaCodes?: string[] | null;
+    includeHiddenStatuses?: boolean;
     from?: string;
     to?: string;
     page?: number;
@@ -359,16 +451,16 @@ export class SearchQueryService {
     qb.andWhere(
       new Brackets((searchQb) => {
         searchQb
-          .where('LOWER(COALESCE(document.codigo, \'\')) LIKE :likeQuery')
+          .where("LOWER(COALESCE(document.codigo, '')) LIKE :likeQuery")
           .orWhere('LOWER(document.nombre) LIKE :likeQuery')
           .orWhere(
-            'LOWER(COALESCE(latestVersion.originalName, \'\')) LIKE :likeQuery',
+            "LOWER(COALESCE(latestVersion.originalName, '')) LIKE :likeQuery",
           )
           .orWhere(
-            'LOWER(COALESCE(latestVersion.comentario, \'\')) LIKE :likeQuery',
+            "LOWER(COALESCE(latestVersion.comentario, '')) LIKE :likeQuery",
           )
           .orWhere(
-            'LOWER(COALESCE(latestVersion.contentText, \'\')) LIKE :likeQuery',
+            "LOWER(COALESCE(latestVersion.contentText, '')) LIKE :likeQuery",
           );
       }),
     );
@@ -379,5 +471,74 @@ export class SearchQueryService {
     });
     qb.orderBy('matchRank', 'ASC').addOrderBy('document.updatedAt', 'DESC');
     return qb;
+  }
+
+  private async reconcileElasticHits(
+    hits: Array<Record<string, unknown>>,
+    params: {
+      visibleStatuses: DocumentStatus[];
+      includeHiddenStatuses?: boolean;
+      requestedStatus?: DocumentStatus;
+    },
+  ): Promise<Array<Record<string, unknown>>> {
+    const ids = hits
+      .map((hit) => Number(hit.documentId))
+      .filter((id) => Number.isInteger(id) && id > 0);
+
+    if (ids.length === 0) {
+      return hits;
+    }
+
+    const documents = await this.documentRepo.find({
+      where: { id: In(ids) },
+      relations: ['category', 'documentType', 'areaCode'],
+    });
+    const documentsById = new Map(
+      documents.map((document) => [document.id, document]),
+    );
+
+    const reconciledHits: Array<Record<string, unknown> | null> = hits.map(
+      (hit) => {
+        const document = documentsById.get(Number(hit.documentId));
+        if (!document) {
+          return null;
+        }
+
+        if (
+          !params.includeHiddenStatuses &&
+          !params.visibleStatuses.includes(document.status)
+        ) {
+          return null;
+        }
+
+        if (
+          params.requestedStatus &&
+          document.status !== params.requestedStatus
+        ) {
+          return null;
+        }
+
+        return {
+          ...hit,
+          documentId: String(document.id),
+          codigo: document.codigo ?? null,
+          isInternal: document.isInternal,
+          nombre: document.nombre,
+          status: document.status,
+          categoryId: document.category?.id?.toString() ?? null,
+          categoryNombre: document.category?.nombre ?? null,
+          documentTypeCode: document.documentType?.code ?? null,
+          documentTypeNombre: document.documentType?.nombreLargo ?? null,
+          areaCode: document.areaCode?.code ?? null,
+          areaNombre: document.areaCode?.nombre ?? null,
+          createdAt: document.createdAt,
+          updatedAt: document.updatedAt,
+        };
+      },
+    );
+
+    return reconciledHits.filter(
+      (hit): hit is Record<string, unknown> => hit !== null,
+    );
   }
 }

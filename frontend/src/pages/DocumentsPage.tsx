@@ -1,51 +1,63 @@
-import { useEffect, useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
-import { Upload, Eye } from 'lucide-react';
-import { documentsList, uploadDocument } from '../api/endpoints/documents';
-import { searchQuery } from '../api/endpoints/search';
-import type { Document } from '../types/documents';
-import { Button } from '../components/ui/Button';
-import { Input } from '../components/ui/Input';
-import { Select } from '../components/ui/Select';
-import { StatusBadge } from '../components/ui/Badge';
-import { Modal } from '../components/ui/Modal';
-import { Textarea } from '../components/ui/Textarea';
-import { Spinner } from '../components/ui/Spinner';
-import { useToast } from '../components/ToastProvider';
-import { useAuth } from '../auth/AuthContext';
-import { formatDate } from '../utils/date';
-import { AccessDenied } from '../components/AccessDenied';
-import { EmptyState } from '../components/EmptyState';
-import { ResponsiveTable, type ResponsiveColumn } from '../components/ui/ResponsiveTable';
-import { PageContainer } from '../components/layout/PageContainer';
-import { PageHeader } from '../components/layout/PageHeader';
-import { ResultsToolbar } from '../components/layout/ResultsToolbar';
-import { SectionCard } from '../components/layout/SectionCard';
-import { ResponsiveActions } from '../components/layout/ResponsiveActions';
-import { FadeInSection } from '../components/ui/Motion';
-import { Pill } from '../components/ui/Badge';
-import { NoticeBanner } from '../components/ui/NoticeBanner';
+import { useEffect, useMemo, useState } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
+import { Upload, Eye } from "lucide-react";
+import {
+  documentsList,
+  getDocumentVisibilityPolicy,
+  updateDocumentVisibilityPolicy,
+  uploadDocument,
+} from "../api/endpoints/documents";
+import { searchQuery } from "../api/endpoints/search";
+import type { Document } from "../types/documents";
+import { Button } from "../components/ui/Button";
+import { Input } from "../components/ui/Input";
+import { Select } from "../components/ui/Select";
+import { StatusBadge } from "../components/ui/Badge";
+import { Modal } from "../components/ui/Modal";
+import { Textarea } from "../components/ui/Textarea";
+import { Spinner } from "../components/ui/Spinner";
+import { useToast } from "../components/ToastProvider";
+import { useAuth } from "../auth/AuthContext";
+import { formatDate } from "../utils/date";
+import { AccessDenied } from "../components/AccessDenied";
+import { EmptyState } from "../components/EmptyState";
+import {
+  ResponsiveTable,
+  type ResponsiveColumn,
+} from "../components/ui/ResponsiveTable";
+import { PageContainer } from "../components/layout/PageContainer";
+import { PageHeader } from "../components/layout/PageHeader";
+import { ResultsToolbar } from "../components/layout/ResultsToolbar";
+import { SectionCard } from "../components/layout/SectionCard";
+import { ResponsiveActions } from "../components/layout/ResponsiveActions";
+import { FadeInSection } from "../components/ui/Motion";
+import { Pill } from "../components/ui/Badge";
+import { NoticeBanner } from "../components/ui/NoticeBanner";
 import {
   getSearchRelevance,
   translateSearchEngine,
   translateStatus,
-} from '../utils/labels';
-import { getApiErrorMessage } from '../utils/apiError';
-import { queryClient } from '../app/queryClient';
-import { invalidateCatalogQueries, invalidateDocumentListQueries } from '../app/queryInvalidation';
-import { queryKeys } from '../app/queryKeys';
-import { useCatalogQueries } from '../hooks/useCatalogQueries';
-import { useDebouncedValue } from '../hooks/useDebouncedValue';
-import { useSavedViews } from '../hooks/useSavedViews';
-import { SavedViewsToolbar } from '../components/layout/SavedViewsToolbar';
-import { ExportMenu } from '../components/ui/ExportMenu';
-import { downloadJson, downloadText } from '../utils/download';
+} from "../utils/labels";
+import { getApiErrorMessage } from "../utils/apiError";
+import { queryClient } from "../app/queryClient";
+import {
+  invalidateCatalogQueries,
+  invalidateDocumentListQueries,
+} from "../app/queryInvalidation";
+import { queryKeys } from "../app/queryKeys";
+import { useCatalogQueries } from "../hooks/useCatalogQueries";
+import { useDebouncedValue } from "../hooks/useDebouncedValue";
+import { useSavedViews } from "../hooks/useSavedViews";
+import { SavedViewsToolbar } from "../components/layout/SavedViewsToolbar";
+import { ExportMenu } from "../components/ui/ExportMenu";
+import { downloadJson, downloadText } from "../utils/download";
+import { Switch } from "../components/ui/Switch";
 
 const LIMIT_OPTIONS = [10, 20, 30];
 type UploadState = {
   open: boolean;
-  mode: 'new' | 'version';
+  mode: "new" | "version";
   document?: Document | null;
 };
 
@@ -56,7 +68,7 @@ type DocumentRow = {
   categoryNombre?: string | null;
   documentTypeCode?: string | null;
   areaCode?: string | null;
-  status?: Document['status'];
+  status?: Document["status"];
   updatedAt?: string;
   score?: number | null;
   sourceDocument?: Document;
@@ -64,66 +76,87 @@ type DocumentRow = {
 
 function parseConsecutivo(codigo?: string | null) {
   if (!codigo) return undefined;
-  const parts = codigo.split('-');
+  const parts = codigo.split("-");
   const value = Number(parts[parts.length - 1]);
   return Number.isNaN(value) ? undefined : value;
 }
 
+const today = new Date().toISOString().slice(0, 10);
+
 export default function DocumentsPage() {
   const { notify } = useToast();
   const { user, isAdmin } = useAuth();
-  const { initialFilters, views, saveCurrentView, deleteView, rememberLastUsed } =
-    useSavedViews<{
-      page: number;
-      limit: number;
-      q: string;
-      categoryId: string;
-      documentTypeCode: string;
-      areaCode: string;
-      sortByName: string;
-    }>({
-      storageKey: 'documents-filters',
-      scope: user?.email ?? null,
-      fallback: {
-        page: 1,
-        limit: 20,
-        q: '',
-        categoryId: '',
-        documentTypeCode: '',
-        areaCode: '',
-        sortByName: '',
-      },
-    });
+  const {
+    initialFilters,
+    views,
+    saveCurrentView,
+    deleteView,
+    rememberLastUsed,
+  } = useSavedViews<{
+    page: number;
+    limit: number;
+    q: string;
+    categoryId: string;
+    documentTypeCode: string;
+    areaCode: string;
+    status: string;
+    from: string;
+    to: string;
+    sortByName: string;
+  }>({
+    storageKey: "documents-filters",
+    scope: user?.email ?? null,
+    fallback: {
+      page: 1,
+      limit: 20,
+      q: "",
+      categoryId: "",
+      documentTypeCode: "",
+      areaCode: "",
+      status: "",
+      from: "",
+      to: "",
+      sortByName: "",
+    },
+  });
   const [page, setPage] = useState(initialFilters.page);
   const [limit, setLimit] = useState(initialFilters.limit);
   const [filters, setFilters] = useState({
-    q: initialFilters.q,
-    categoryId: initialFilters.categoryId,
-    documentTypeCode: initialFilters.documentTypeCode,
-    areaCode: initialFilters.areaCode,
-    sortByName: initialFilters.sortByName,
+    q: initialFilters.q ?? "",
+    categoryId: initialFilters.categoryId ?? "",
+    documentTypeCode: initialFilters.documentTypeCode ?? "",
+    areaCode: initialFilters.areaCode ?? "",
+    status: initialFilters.status ?? "",
+    from: initialFilters.from ?? "",
+    to: initialFilters.to ?? "",
+    sortByName: initialFilters.sortByName ?? "",
   });
   const [uploadState, setUploadState] = useState<UploadState>({
     open: false,
-    mode: 'new',
+    mode: "new",
   });
   const [uploadForm, setUploadForm] = useState({
-    nombreDocumento: '',
-    comentario: '',
-    categoryId: '',
-    documentTypeCode: '',
-    areaCode: '',
-    consecutivo: '',
+    nombreDocumento: "",
+    comentario: "",
+    categoryId: "",
+    isInternal: false,
+    documentTypeCode: "",
+    areaCode: "",
+    consecutivo: "",
     file: null as File | null,
   });
   const debouncedQuery = useDebouncedValue(filters.q);
+  // Text search switches data source from SQL list endpoint to search endpoint.
   const hasTextSearch = Boolean(debouncedQuery.trim());
   const hasActiveFilters = Boolean(
     filters.q.trim() ||
-      filters.categoryId ||
-      filters.documentTypeCode ||
-      filters.areaCode ||
-      filters.sortByName,
+    filters.categoryId ||
+    filters.documentTypeCode ||
+    filters.areaCode ||
+    filters.status ||
+    filters.from ||
+    filters.to ||
+    filters.sortByName,
   );
 
   const documentsQuery = useQuery({
@@ -133,6 +166,9 @@ export default function DocumentsPage() {
       categoryId: filters.categoryId,
       documentTypeCode: filters.documentTypeCode,
       areaCode: filters.areaCode,
+      status: filters.status,
+      from: filters.from,
+      to: filters.to,
       sortByName: filters.sortByName,
     }),
     queryFn: () =>
@@ -142,7 +178,10 @@ export default function DocumentsPage() {
         categoryId: filters.categoryId,
         documentTypeCode: filters.documentTypeCode,
         areaCode: filters.areaCode,
-        sortByName: filters.sortByName as 'az' | 'za' | '',
+        status: filters.status as Document["status"] | "",
+        from: filters.from,
+        to: filters.to,
+        sortByName: filters.sortByName as "az" | "za" | "",
       }),
     enabled: !hasTextSearch,
     placeholderData: (previousData) => previousData,
@@ -161,6 +200,9 @@ export default function DocumentsPage() {
         categoryId: filters.categoryId || undefined,
         documentTypeCode: filters.documentTypeCode || undefined,
         areaCode: filters.areaCode || undefined,
+        status: (filters.status as Document["status"]) || undefined,
+        from: filters.from || undefined,
+        to: filters.to || undefined,
         page,
         limit,
       }),
@@ -168,9 +210,35 @@ export default function DocumentsPage() {
   });
 
   const { categoriesQuery, typesQuery, areasQuery } = useCatalogQueries();
+  const visibilityPolicyQuery = useQuery({
+    queryKey: queryKeys.documents.visibility,
+    queryFn: getDocumentVisibilityPolicy,
+    enabled: isAdmin,
+  });
+  const visibilityMutation = useMutation({
+    mutationFn: updateDocumentVisibilityPolicy,
+    onSuccess: async () => {
+      notify("Visibilidad de documentos actualizada", "success");
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.documents.visibility,
+        }),
+        invalidateDocumentListQueries(queryClient),
+      ]);
+    },
+    onError: (error) => {
+      notify(
+        getApiErrorMessage(error, "No se pudo actualizar la visibilidad"),
+        "error",
+      );
+    },
+  });
 
   const documentsById = useMemo(
-    () => new Map((documentsQuery.data?.items ?? []).map((doc) => [String(doc.id), doc])),
+    () =>
+      new Map(
+        (documentsQuery.data?.items ?? []).map((doc) => [String(doc.id), doc]),
+      ),
     [documentsQuery.data?.items],
   );
 
@@ -181,10 +249,14 @@ export default function DocumentsPage() {
           return {
             id: Number(item.documentId),
             codigo: item.codigo ?? sourceDocument?.codigo,
-            nombre: item.nombre ?? sourceDocument?.nombre ?? '-',
-            categoryNombre: item.categoryNombre ?? sourceDocument?.category?.nombre ?? '-',
-            documentTypeCode: item.documentTypeCode ?? sourceDocument?.documentType?.code ?? '-',
-            areaCode: item.areaCode ?? sourceDocument?.areaCode?.code ?? '-',
+            nombre: item.nombre ?? sourceDocument?.nombre ?? "-",
+            categoryNombre:
+              item.categoryNombre ?? sourceDocument?.category?.nombre ?? "-",
+            documentTypeCode:
+              item.documentTypeCode ??
+              sourceDocument?.documentType?.code ??
+              "-",
+            areaCode: item.areaCode ?? sourceDocument?.areaCode?.code ?? "-",
             status: item.status ?? sourceDocument?.status,
             updatedAt: sourceDocument?.updatedAt ?? item.updatedAt,
             score: item.score ?? null,
@@ -195,22 +267,22 @@ export default function DocumentsPage() {
           id: doc.id,
           codigo: doc.codigo,
           nombre: doc.nombre,
-          categoryNombre: doc.category?.nombre ?? '-',
-          documentTypeCode: doc.documentType?.code ?? '-',
-          areaCode: doc.areaCode?.code ?? '-',
+          categoryNombre: doc.category?.nombre ?? "-",
+          documentTypeCode: doc.documentType?.code ?? "-",
+          areaCode: doc.areaCode?.code ?? "-",
           status: doc.status,
           updatedAt: doc.updatedAt,
           sourceDocument: doc,
         }));
 
-    if (filters.sortByName === 'az') {
+    if (filters.sortByName === "az") {
       return [...baseRows].sort((a, b) =>
-        a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' }),
+        a.nombre.localeCompare(b.nombre, "es", { sensitivity: "base" }),
       );
     }
-    if (filters.sortByName === 'za') {
+    if (filters.sortByName === "za") {
       return [...baseRows].sort((a, b) =>
-        b.nombre.localeCompare(a.nombre, 'es', { sensitivity: 'base' }),
+        b.nombre.localeCompare(a.nombre, "es", { sensitivity: "base" }),
       );
     }
     return baseRows;
@@ -223,17 +295,20 @@ export default function DocumentsPage() {
   ]);
 
   const total = hasTextSearch
-    ? typeof searchQueryResult.data?.total === 'number'
+    ? typeof searchQueryResult.data?.total === "number"
       ? searchQueryResult.data.total
-      : searchQueryResult.data?.total?.value ?? 0
-    : documentsQuery.data?.total ?? 0;
+      : (searchQueryResult.data?.total?.value ?? 0)
+    : (documentsQuery.data?.total ?? 0);
   const totalPages = Math.max(1, Math.ceil(total / limit));
 
   const maxScoreInPage = useMemo(() => {
     if (!hasTextSearch) return null;
     const scores = rows
       .map((row) => row.score)
-      .filter((value): value is number => typeof value === 'number' && !Number.isNaN(value));
+      .filter(
+        (value): value is number =>
+          typeof value === "number" && !Number.isNaN(value),
+      );
     return scores.length > 0 ? Math.max(...scores) : null;
   }, [hasTextSearch, rows]);
 
@@ -245,112 +320,217 @@ export default function DocumentsPage() {
     });
   }, [filters, limit, page, rememberLastUsed]);
 
-  const openUpload = (mode: UploadState['mode'], document?: Document) => {
+  const canUploadDocument = () => {
+    // Admin bypasses granular upload flags by design.
+    if (isAdmin) return true;
+    return Boolean(user?.permissions?.canUpload);
+  };
+
+  const canUploadVersion = () => {
+    if (isAdmin) return true;
+    return Boolean(user?.permissions?.canUploadNewVersion);
+  };
+
+  const openUpload = (mode: UploadState["mode"], document?: Document) => {
+    if (mode === "new" && !canUploadDocument()) {
+      return;
+    }
+    if (mode === "version" && !canUploadVersion()) {
+      return;
+    }
     setUploadState({ open: true, mode, document: document ?? null });
-    if (mode === 'version' && document) {
+    if (mode === "version" && document) {
       setUploadForm({
         nombreDocumento: document.nombre,
-        comentario: '',
-        categoryId: document.category?.id ? String(document.category.id) : '',
-        documentTypeCode: document.documentType?.code ?? '',
-        areaCode: document.areaCode?.code ?? '',
-        consecutivo: String(parseConsecutivo(document.codigo) ?? ''),
+        comentario: "",
+        categoryId: document.category?.id ? String(document.category.id) : "",
+        isInternal: Boolean(document.isInternal),
+        documentTypeCode: document.documentType?.code ?? "",
+        areaCode: document.areaCode?.code ?? "",
+        consecutivo: String(parseConsecutivo(document.codigo) ?? ""),
         file: null,
       });
       return;
     }
     setUploadForm({
-      nombreDocumento: '',
-      comentario: '',
-      categoryId: '',
-      documentTypeCode: '',
-      areaCode: '',
-      consecutivo: '',
+      nombreDocumento: "",
+      comentario: "",
+      categoryId: "",
+      isInternal: false,
+      documentTypeCode: "",
+      areaCode: "",
+      consecutivo: "",
       file: null,
     });
   };
 
   const submitUpload = async () => {
+    const isVersionMode =
+      uploadState.mode === "version" && Boolean(uploadState.document?.id);
+    const isInternalDocument = isVersionMode
+      ? Boolean(uploadState.document?.isInternal)
+      : uploadForm.isInternal;
+    const canSubmitUpload = isVersionMode
+      ? canUploadVersion()
+      : canUploadDocument();
+
+    if (!canSubmitUpload) {
+      notify(
+        isVersionMode
+          ? "No tienes permiso para subir nuevas versiones"
+          : "No tienes permiso para subir documentos",
+        "error",
+      );
+      return;
+    }
+
     if (!uploadForm.file) {
-      notify('Selecciona un archivo', 'error');
+      notify("Selecciona un archivo", "error");
       return;
     }
     if (!uploadForm.nombreDocumento.trim()) {
-      notify('Nombre del documento requerido', 'error');
+      notify("Nombre del documento requerido", "error");
       return;
     }
+    if (isInternalDocument && !uploadForm.documentTypeCode) {
+      notify("Tipo requerido para documentos internos", "error");
+      return;
+    }
+    if (isInternalDocument && !uploadForm.areaCode) {
+      notify("Área requerida para documentos internos", "error");
+      return;
+    }
+    if (
+      isInternalDocument &&
+      (!/^\d+$/.test(uploadForm.consecutivo.trim()) ||
+        Number(uploadForm.consecutivo.trim()) < 1)
+    ) {
+      notify("Consecutivo requerido para documentos internos", "error");
+      return;
+    }
+
     const form = new FormData();
-    form.append('file', uploadForm.file);
-    form.append('nombreDocumento', uploadForm.nombreDocumento);
-    if (uploadForm.comentario) form.append('comentario', uploadForm.comentario);
-    if (uploadForm.categoryId) form.append('categoryId', uploadForm.categoryId);
-    if (uploadForm.documentTypeCode) form.append('documentTypeCode', uploadForm.documentTypeCode);
-    if (uploadForm.areaCode) form.append('areaCode', uploadForm.areaCode);
-    if (uploadForm.consecutivo) form.append('consecutivo', uploadForm.consecutivo);
+    form.append("file", uploadForm.file);
+    form.append("nombreDocumento", uploadForm.nombreDocumento);
+    if (uploadForm.comentario) form.append("comentario", uploadForm.comentario);
+    if (uploadForm.categoryId) form.append("categoryId", uploadForm.categoryId);
+    if (isVersionMode && uploadState.document?.id) {
+      form.append("documentId", String(uploadState.document.id));
+    } else {
+      form.append("isInternal", String(isInternalDocument));
+      if (uploadForm.documentTypeCode) {
+        form.append("documentTypeCode", uploadForm.documentTypeCode);
+      }
+      if (uploadForm.areaCode) {
+        form.append("areaCode", uploadForm.areaCode);
+      }
+      if (isInternalDocument && uploadForm.consecutivo) {
+        form.append("consecutivo", uploadForm.consecutivo.trim());
+      }
+    }
 
     try {
       await uploadDocument(form);
-      notify('Documento cargado', 'success');
-      setUploadState({ open: false, mode: 'new', document: null });
+      notify("Documento cargado", "success");
+      setUploadState({ open: false, mode: "new", document: null });
       invalidateDocumentListQueries(queryClient);
       invalidateCatalogQueries(queryClient);
     } catch (error: any) {
       const status = error?.response?.status;
       if (status === 403) {
-        notify('Acceso denegado', 'error');
+        notify("Acceso denegado", "error");
       } else {
-        notify(getApiErrorMessage(error, 'Error al subir'), 'error');
+        notify(getApiErrorMessage(error, "Error al subir"), "error");
       }
     }
   };
 
-  const canUploadVersion = (document: Document) => {
-    if (isAdmin) return true;
-    const area = document.areaCode?.code;
-    return Boolean(area && user?.allowedAreaCodes?.includes(area));
-  };
+  const uploadIsVersion = uploadState.mode === "version";
+  const uploadIsInternal = uploadIsVersion
+    ? Boolean(uploadState.document?.isInternal)
+    : uploadForm.isInternal;
+  const lockDocumentIdentity = uploadIsVersion;
 
-  const hasAssignedAreas = isAdmin || (user?.allowedAreaCodes?.length ?? 0) > 0;
   const isSearching = hasActiveFilters;
+  const visibilityRows = [
+    {
+      key: "draftVisibleToUsers" as const,
+      status: "Borradores",
+      description:
+        "Controla si los usuarios normales pueden ver documentos en borrador.",
+    },
+    {
+      key: "inReviewVisibleToUsers" as const,
+      status: "En revisión",
+      description:
+        "Controla si los usuarios normales pueden ver documentos en revisión.",
+    },
+    {
+      key: "approvedVisibleToUsers" as const,
+      status: "Aprobados",
+      description:
+        "Controla si los usuarios normales pueden ver documentos aprobados.",
+    },
+    {
+      key: "obsoleteVisibleToUsers" as const,
+      status: "Obsoletos",
+      description:
+        "Controla si los usuarios normales pueden ver documentos obsoletos.",
+    },
+  ];
 
-  const activeQueryError = hasTextSearch ? searchQueryResult.error : documentsQuery.error;
+  const activeQueryError = hasTextSearch
+    ? searchQueryResult.error
+    : documentsQuery.error;
   const errorStatus = (activeQueryError as any)?.response?.status;
   const errorEndpoint =
-    (activeQueryError as any)?.config?.url ?? (hasTextSearch ? '/search' : '/documents');
-  const errorDetail = errorStatus ? `(${errorStatus} ${errorEndpoint})` : `(${errorEndpoint})`;
+    (activeQueryError as any)?.config?.url ??
+    (hasTextSearch ? "/search" : "/documents");
+  const errorDetail = errorStatus
+    ? `(${errorStatus} ${errorEndpoint})`
+    : `(${errorEndpoint})`;
 
   const columns: ResponsiveColumn<DocumentRow>[] = [
     {
-      header: 'Código',
+      header: "Código",
       cell: (row) => (
-        <span className="block max-w-[140px] truncate text-xs font-semibold">{row.codigo ?? '-'}</span>
+        <span className="block max-w-[140px] truncate text-xs font-semibold">
+          {row.codigo ?? "-"}
+        </span>
       ),
     },
     {
-      header: 'Nombre',
+      header: "Nombre",
       cell: (row) => (
         <div className="flex flex-col">
-          <span className="max-w-[220px] truncate font-semibold text-ink">{row.nombre}</span>
-          <span className="text-xs text-brand-textMuted">{row.categoryNombre ?? 'Sin categoría'}</span>
+          <span className="max-w-[220px] truncate font-semibold text-ink">
+            {row.nombre}
+          </span>
+          <span className="text-xs text-brand-textMuted">
+            {row.categoryNombre ?? "Sin categoría"}
+          </span>
         </div>
       ),
     },
-    { header: 'Tipo', cell: (row) => row.documentTypeCode ?? '-' },
-    { header: 'Área', cell: (row) => row.areaCode ?? '-' },
-    { header: 'Categoría', cell: (row) => row.categoryNombre ?? '-' },
+    { header: "Tipo", cell: (row) => row.documentTypeCode ?? "-" },
+    { header: "Área", cell: (row) => row.areaCode ?? "-" },
+    { header: "Categoría", cell: (row) => row.categoryNombre ?? "-" },
     {
-      header: 'Coincidencia',
+      header: "Coincidencia",
       cell: (row) => {
-        if (!hasTextSearch) return '-';
+        if (!hasTextSearch) return "-";
         const relevance = getSearchRelevance(row.score, maxScoreInPage);
-        if (relevance.value === null) return '-';
+        if (relevance.value === null) return "-";
         return <Pill tone={relevance.tone}>{relevance.label}</Pill>;
       },
     },
-    { header: 'Estado', cell: (row) => (row.status ? <StatusBadge status={row.status} /> : '-') },
-    { header: 'Actualizado', cell: (row) => formatDate(row.updatedAt) },
     {
-      header: 'Acciones',
+      header: "Estado",
+      cell: (row) => (row.status ? <StatusBadge status={row.status} /> : "-"),
+    },
+    { header: "Actualizado", cell: (row) => formatDate(row.updatedAt) },
+    {
+      header: "Acciones",
       cell: (row) => (
         <div className="flex flex-wrap gap-2">
           <Link to={`/documents/${row.id}`}>
@@ -361,8 +541,10 @@ export default function DocumentsPage() {
           <Button
             variant="ghost"
             className="px-3"
-            onClick={() => row.sourceDocument && openUpload('version', row.sourceDocument)}
-            disabled={!row.sourceDocument || !canUploadVersion(row.sourceDocument)}
+            onClick={() =>
+              row.sourceDocument && openUpload("version", row.sourceDocument)
+            }
+            disabled={!row.sourceDocument || !canUploadVersion()}
           >
             <Upload size={16} /> Versión
           </Button>
@@ -373,33 +555,35 @@ export default function DocumentsPage() {
 
   const exportRowsAsCsv = () => {
     const headers = [
-      'codigo',
-      'nombre',
-      'tipo',
-      'area',
-      'categoria',
-      'coincidencia',
-      'estado',
-      'actualizado',
+      "codigo",
+      "nombre",
+      "tipo",
+      "area",
+      "categoria",
+      "coincidencia",
+      "estado",
+      "actualizado",
     ];
     const lines = rows.map((row) =>
       [
-        row.codigo ?? '',
+        row.codigo ?? "",
         row.nombre,
-        row.documentTypeCode ?? '',
-        row.areaCode ?? '',
-        row.categoryNombre ?? '',
-        hasTextSearch ? getSearchRelevance(row.score, maxScoreInPage).label : '',
-        row.status ? translateStatus(row.status) : '',
-        row.updatedAt ? formatDate(row.updatedAt) : '',
+        row.documentTypeCode ?? "",
+        row.areaCode ?? "",
+        row.categoryNombre ?? "",
+        hasTextSearch
+          ? getSearchRelevance(row.score, maxScoreInPage).label
+          : "",
+        row.status ? translateStatus(row.status) : "",
+        row.updatedAt ? formatDate(row.updatedAt) : "",
       ]
         .map((value) => `"${String(value).replace(/"/g, '""')}"`)
-        .join(','),
+        .join(","),
     );
     downloadText(
-      [headers.join(','), ...lines].join('\n'),
+      [headers.join(","), ...lines].join("\n"),
       `documentos_${new Date().toISOString().slice(0, 10)}.csv`,
-      'text/csv;charset=utf-8',
+      "text/csv;charset=utf-8",
     );
   };
 
@@ -434,20 +618,90 @@ export default function DocumentsPage() {
       <section className="flex flex-col gap-6">
         <PageHeader
           title="Documentos"
-          subtitle={hasActiveFilters ? 'Búsqueda avanzada por coincidencia.' : 'Listado general.'}
+          subtitle={
+            hasActiveFilters
+              ? "Búsqueda avanzada por coincidencia."
+              : "Listado general."
+          }
         />
+
+        {isAdmin ? (
+          <FadeInSection delay={0.02}>
+            <SectionCard>
+              <div className="mb-4">
+                <h3 className="text-sm font-semibold uppercase tracking-[0.2em] text-brand-textMuted">
+                  Visibilidad global de documentos
+                </h3>
+                <p className="mt-2 text-sm text-brand-textMuted">
+                  Solo afecta a usuarios normales. Los administradores siguen
+                  viendo todos los estados.
+                </p>
+              </div>
+              {visibilityPolicyQuery.isLoading ? (
+                <div className="flex items-center justify-center py-6">
+                  <Spinner />
+                </div>
+              ) : visibilityPolicyQuery.isError ? (
+                <NoticeBanner
+                  variant="error"
+                  title="No se pudo cargar la visibilidad global"
+                >
+                  Intenta de nuevo en unos segundos.
+                </NoticeBanner>
+              ) : (
+                <div className="grid gap-3 md:grid-cols-2">
+                  {visibilityRows.map((row) => {
+                    const checked = Boolean(
+                      visibilityPolicyQuery.data?.[row.key],
+                    );
+                    const busy =
+                      visibilityMutation.isPending &&
+                      visibilityMutation.variables &&
+                      row.key in visibilityMutation.variables;
+                    return (
+                      <div
+                        key={row.key}
+                        className="flex items-center justify-between gap-4 rounded-xl border border-brand-border bg-brand-bg px-4 py-3"
+                      >
+                        <div className="min-w-0">
+                          <div className="font-semibold text-ink">
+                            {row.status}
+                          </div>
+                          <div className="text-sm text-brand-textMuted">
+                            {row.description}
+                          </div>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-3">
+                          <span className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-textMuted">
+                            {checked ? "Visible" : "Oculto"}
+                          </span>
+                          <Switch
+                            label={`Visibilidad de ${row.status}`}
+                            checked={checked}
+                            disabled={busy}
+                            onChange={(nextChecked) =>
+                              visibilityMutation.mutate({
+                                [row.key]: nextChecked,
+                              })
+                            }
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </SectionCard>
+          </FadeInSection>
+        ) : null}
 
         <FadeInSection>
           <SectionCard>
-            {!hasAssignedAreas ? (
-              <NoticeBanner variant="warning" title="Sin áreas asignadas" className="mb-4">
-                Aún no tienes áreas asignadas. No verás documentos hasta que un administrador te
-                asigne al menos un área.
-              </NoticeBanner>
-            ) : isSearching ? (
+            {isSearching ? (
               <NoticeBanner title="Búsqueda avanzada activa" className="mb-4">
-                Se están mostrando coincidencias por texto y filtros. Si no encuentras un documento,
-                limpia los filtros o ajusta la consulta.
+                Se están mostrando coincidencias por texto y filtros. Si no
+                encuentras un documento, limpia los filtros o ajusta la
+                consulta.
               </NoticeBanner>
             ) : null}
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -464,7 +718,10 @@ export default function DocumentsPage() {
                 label="Categoría"
                 value={filters.categoryId}
                 onChange={(event) => {
-                  setFilters((prev) => ({ ...prev, categoryId: event.target.value }));
+                  setFilters((prev) => ({
+                    ...prev,
+                    categoryId: event.target.value,
+                  }));
                   setPage(1);
                 }}
               >
@@ -479,7 +736,10 @@ export default function DocumentsPage() {
                 label="Tipo"
                 value={filters.documentTypeCode}
                 onChange={(event) => {
-                  setFilters((prev) => ({ ...prev, documentTypeCode: event.target.value }));
+                  setFilters((prev) => ({
+                    ...prev,
+                    documentTypeCode: event.target.value,
+                  }));
                   setPage(1);
                 }}
               >
@@ -494,7 +754,10 @@ export default function DocumentsPage() {
                 label="Área"
                 value={filters.areaCode}
                 onChange={(event) => {
-                  setFilters((prev) => ({ ...prev, areaCode: event.target.value }));
+                  setFilters((prev) => ({
+                    ...prev,
+                    areaCode: event.target.value,
+                  }));
                   setPage(1);
                 }}
               >
@@ -506,10 +769,51 @@ export default function DocumentsPage() {
                 ))}
               </Select>
               <Select
+                label="Estado"
+                value={filters.status}
+                onChange={(event) => {
+                  setFilters((prev) => ({
+                    ...prev,
+                    status: event.target.value,
+                  }));
+                  setPage(1);
+                }}
+              >
+                <option value="">Todos</option>
+                <option value="DRAFT">Borrador</option>
+                <option value="IN_REVIEW">En revisión</option>
+                <option value="APPROVED">Aprobado</option>
+                <option value="OBSOLETE">Obsoleto</option>
+              </Select>
+              <Input
+                label="Fecha desde"
+                type="date"
+                value={filters.from}
+                max={filters.to || today}
+                onChange={(event) => {
+                  setFilters((prev) => ({ ...prev, from: event.target.value }));
+                  setPage(1);
+                }}
+              />
+              <Input
+                label="Fecha hasta"
+                type="date"
+                value={filters.to}
+                min={filters.from || undefined}
+                max={today}
+                onChange={(event) => {
+                  setFilters((prev) => ({ ...prev, to: event.target.value }));
+                  setPage(1);
+                }}
+              />
+              <Select
                 label="Orden nombre"
                 value={filters.sortByName}
                 onChange={(event) => {
-                  setFilters((prev) => ({ ...prev, sortByName: event.target.value }));
+                  setFilters((prev) => ({
+                    ...prev,
+                    sortByName: event.target.value,
+                  }));
                   setPage(1);
                 }}
               >
@@ -539,24 +843,31 @@ export default function DocumentsPage() {
                   variant="outline"
                   onClick={() => {
                     setFilters({
-                      q: '',
-                      categoryId: '',
-                      documentTypeCode: '',
-                      areaCode: '',
-                      sortByName: '',
+                      q: "",
+                      categoryId: "",
+                      documentTypeCode: "",
+                      areaCode: "",
+                      status: "",
+                      from: "",
+                      to: "",
+                      sortByName: "",
                     });
                     setPage(1);
                   }}
                 >
                   Limpiar filtros
                 </Button>
-                <Button variant="secondary" onClick={() => openUpload('new')}>
+                <Button
+                  variant="secondary"
+                  onClick={() => openUpload("new")}
+                  disabled={!canUploadDocument()}
+                >
                   <Upload size={16} /> Subir documento
                 </Button>
               </ResponsiveActions>
             </div>
             <p className="mt-3 text-xs uppercase tracking-[0.2em] text-brand-textMuted">
-              {hasActiveFilters ? 'Búsqueda avanzada' : 'Filtrado local'}
+              {hasActiveFilters ? "Búsqueda avanzada" : "Filtrado local"}
             </p>
           </SectionCard>
         </FadeInSection>
@@ -567,11 +878,14 @@ export default function DocumentsPage() {
             setPage(saved.page);
             setLimit(saved.limit);
             setFilters({
-              q: saved.q,
-              categoryId: saved.categoryId,
-              documentTypeCode: saved.documentTypeCode,
-              areaCode: saved.areaCode,
-              sortByName: saved.sortByName,
+              q: saved.q ?? "",
+              categoryId: saved.categoryId ?? "",
+              documentTypeCode: saved.documentTypeCode ?? "",
+              areaCode: saved.areaCode ?? "",
+              status: saved.status ?? "",
+              from: saved.from ?? "",
+              to: saved.to ?? "",
+              sortByName: saved.sortByName ?? "",
             });
           }}
           onSave={(name) => {
@@ -580,7 +894,7 @@ export default function DocumentsPage() {
               limit,
               ...filters,
             });
-            notify('Vista guardada', 'success');
+            notify("Vista guardada", "success");
           }}
           onDelete={(id) => {
             deleteView(id, {
@@ -588,31 +902,33 @@ export default function DocumentsPage() {
               limit,
               ...filters,
             });
-            notify('Vista eliminada', 'success');
+            notify("Vista eliminada", "success");
           }}
         />
 
-        {documentsQuery.isLoading || (hasTextSearch && searchQueryResult.isLoading) ? (
+        {documentsQuery.isLoading ||
+        (hasTextSearch && searchQueryResult.isLoading) ? (
           <FadeInSection delay={0.05}>
             <SectionCard className="flex items-center justify-center p-10">
               <Spinner />
             </SectionCard>
           </FadeInSection>
-        ) : documentsQuery.isError || (hasTextSearch && searchQueryResult.isError) ? (
+        ) : documentsQuery.isError ||
+          (hasTextSearch && searchQueryResult.isError) ? (
           <FadeInSection delay={0.05}>
-            <NoticeBanner variant="error" title="No se pudieron cargar los documentos">
-              Revisa tu conexión o vuelve a intentarlo. Referencia técnica: {errorDetail}
+            <NoticeBanner
+              variant="error"
+              title="No se pudieron cargar los documentos"
+            >
+              Revisa tu conexión o vuelve a intentarlo. Referencia técnica:{" "}
+              {errorDetail}
             </NoticeBanner>
           </FadeInSection>
         ) : total === 0 ? (
           <FadeInSection delay={0.05}>
             <EmptyState
               title="Sin documentos"
-              subtitle={
-                hasAssignedAreas
-                  ? 'Ajusta filtros o sube un documento.'
-                  : 'No tienes áreas asignadas, solicita asignación al administrador.'
-              }
+              subtitle="Ajusta filtros o sube un documento."
             />
           </FadeInSection>
         ) : (
@@ -621,11 +937,22 @@ export default function DocumentsPage() {
               <ResultsToolbar
                 summary={
                   <>
-                    <span>Mostrando {rows.length} de {total}</span>
-                    <span>Página {page} de {totalPages}</span>
+                    <span>
+                      Mostrando {rows.length} de {total}
+                    </span>
+                    <span>
+                      Página {page} de {totalPages}
+                    </span>
                     {hasTextSearch ? (
-                      <Pill tone={searchQueryResult.data?.engine === 'elastic' ? 'APPROVED' : 'IN_REVIEW'}>
-                        Motor: {translateSearchEngine(searchQueryResult.data?.engine)}
+                      <Pill
+                        tone={
+                          searchQueryResult.data?.engine === "elastic"
+                            ? "APPROVED"
+                            : "IN_REVIEW"
+                        }
+                      >
+                        Motor:{" "}
+                        {translateSearchEngine(searchQueryResult.data?.engine)}
                       </Pill>
                     ) : null}
                   </>
@@ -640,14 +967,14 @@ export default function DocumentsPage() {
                   <ExportMenu
                     options={[
                       {
-                        key: 'csv',
-                        label: 'Exportar CSV visible',
+                        key: "csv",
+                        label: "Exportar CSV visible",
                         onClick: exportRowsAsCsv,
                         disabled: rows.length === 0,
                       },
                       {
-                        key: 'json',
-                        label: 'Exportar JSON visible',
+                        key: "json",
+                        label: "Exportar JSON visible",
                         onClick: exportRowsAsJson,
                         disabled: rows.length === 0,
                       },
@@ -670,46 +997,71 @@ export default function DocumentsPage() {
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <div className="truncate text-xs uppercase tracking-[0.2em] text-brand-textMuted">
-                            {row.codigo ?? 'Sin código'}
+                            {row.codigo ?? "Sin código"}
                           </div>
-                          <div className="truncate font-semibold text-ink">{row.nombre}</div>
+                          <div className="truncate font-semibold text-ink">
+                            {row.nombre}
+                          </div>
                           <div className="truncate text-xs text-brand-textMuted">
-                            {row.categoryNombre ?? 'Sin categoría'}
+                            {row.categoryNombre ?? "Sin categoría"}
                           </div>
                         </div>
-                        {row.status ? <StatusBadge status={row.status} /> : null}
+                        {row.status ? (
+                          <StatusBadge status={row.status} />
+                        ) : null}
                       </div>
                       <div className="grid gap-2 text-xs text-brand-textMuted sm:grid-cols-2">
                         <div>
-                          <span className="text-brand-textMuted">Tipo:</span> {row.documentTypeCode ?? '-'}
+                          <span className="text-brand-textMuted">Tipo:</span>{" "}
+                          {row.documentTypeCode ?? "-"}
                         </div>
                         <div>
-                          <span className="text-brand-textMuted">Área:</span> {row.areaCode ?? '-'}
+                          <span className="text-brand-textMuted">Área:</span>{" "}
+                          {row.areaCode ?? "-"}
                         </div>
                         <div>
-                          <span className="text-brand-textMuted">Actualizado:</span> {formatDate(row.updatedAt)}
+                          <span className="text-brand-textMuted">
+                            Actualizado:
+                          </span>{" "}
+                          {formatDate(row.updatedAt)}
                         </div>
                         <div>
-                          <span className="text-brand-textMuted">Coincidencia:</span>{' '}
-                          {hasTextSearch ? (() => {
-                            const relevance = getSearchRelevance(row.score, maxScoreInPage);
-                            return relevance.value === null
-                              ? '-'
-                              : relevance.label;
-                          })() : '-'}
+                          <span className="text-brand-textMuted">
+                            Coincidencia:
+                          </span>{" "}
+                          {hasTextSearch
+                            ? (() => {
+                                const relevance = getSearchRelevance(
+                                  row.score,
+                                  maxScoreInPage,
+                                );
+                                return relevance.value === null
+                                  ? "-"
+                                  : relevance.label;
+                              })()
+                            : "-"}
                         </div>
                       </div>
                       <ResponsiveActions>
-                        <Link to={`/documents/${row.id}`} className="w-full sm:w-auto">
-                          <Button variant="outline" className="w-full sm:w-auto">
+                        <Link
+                          to={`/documents/${row.id}`}
+                          className="w-full sm:w-auto"
+                        >
+                          <Button
+                            variant="outline"
+                            className="w-full sm:w-auto"
+                          >
                             <Eye size={16} /> Ver
                           </Button>
                         </Link>
                         <Button
                           variant="ghost"
                           className="w-full sm:w-auto"
-                          onClick={() => row.sourceDocument && openUpload('version', row.sourceDocument)}
-                          disabled={!row.sourceDocument || !canUploadVersion(row.sourceDocument)}
+                          onClick={() =>
+                            row.sourceDocument &&
+                            openUpload("version", row.sourceDocument)
+                          }
+                          disabled={!row.sourceDocument || !canUploadVersion()}
                         >
                           <Upload size={16} /> Versión
                         </Button>
@@ -724,32 +1076,80 @@ export default function DocumentsPage() {
 
         <Modal
           open={uploadState.open}
-          title={uploadState.mode === 'version' ? 'Nueva versión' : 'Nuevo documento'}
-          onClose={() => setUploadState({ open: false, mode: 'new', document: null })}
+          title={
+            uploadState.mode === "version" ? "Nueva versión" : "Nuevo documento"
+          }
+          onClose={() =>
+            setUploadState({ open: false, mode: "new", document: null })
+          }
         >
           <div className="grid gap-4">
             <NoticeBanner
-              title={uploadState.mode === 'version' ? 'Subiendo nueva versión' : 'Subiendo documento'}
+              title={
+                uploadState.mode === "version"
+                  ? "Subiendo nueva versión"
+                  : "Subiendo documento"
+              }
             >
-              {uploadState.mode === 'version'
-                ? 'Mantén tipo, área y consecutivo para conservar el historial del documento actual.'
-                : 'Si es un documento SIG, selecciona tipo y área para generar su código automáticamente.'}
+              {uploadState.mode === "version"
+                ? "La nueva versión conservará si el documento es interno y el mismo código actual."
+                : 'Si es un documento interno marca la casilla "documento interno" para generar su código automáticamente.'}
             </NoticeBanner>
             <Input
               label="Nombre documento"
               value={uploadForm.nombreDocumento}
-              onChange={(event) => setUploadForm((prev) => ({ ...prev, nombreDocumento: event.target.value }))}
+              onChange={(event) =>
+                setUploadForm((prev) => ({
+                  ...prev,
+                  nombreDocumento: event.target.value,
+                }))
+              }
             />
+            <label className="inline-flex items-center gap-3 rounded-xl border border-brand-border bg-brand-bg px-4 py-3 text-sm text-ink">
+              <input
+                type="checkbox"
+                className="h-4 w-4 rounded border-brand-border text-brand-primary focus:ring-brand-primary"
+                checked={uploadIsInternal}
+                disabled={lockDocumentIdentity}
+                onChange={(event) =>
+                  setUploadForm((prev) => ({
+                    ...prev,
+                    isInternal: event.target.checked,
+                    documentTypeCode: event.target.checked
+                      ? prev.documentTypeCode
+                      : "",
+                    consecutivo: event.target.checked ? prev.consecutivo : "",
+                  }))
+                }
+              />
+              <span>Documento interno</span>
+            </label>
+            {!uploadIsVersion && uploadForm.isInternal ? (
+              <NoticeBanner variant="warning">
+                Se antepone automaticamente la palabra "CEP", en el código de
+                todo documento interno.
+              </NoticeBanner>
+            ) : null}
             <Textarea
               label="Comentario"
               value={uploadForm.comentario}
-              onChange={(event) => setUploadForm((prev) => ({ ...prev, comentario: event.target.value }))}
+              onChange={(event) =>
+                setUploadForm((prev) => ({
+                  ...prev,
+                  comentario: event.target.value,
+                }))
+              }
             />
             <div className="grid gap-4 md:grid-cols-2">
               <Select
                 label="Categoría"
                 value={uploadForm.categoryId}
-                onChange={(event) => setUploadForm((prev) => ({ ...prev, categoryId: event.target.value }))}
+                onChange={(event) =>
+                  setUploadForm((prev) => ({
+                    ...prev,
+                    categoryId: event.target.value,
+                  }))
+                }
               >
                 <option value="">Sin categoría</option>
                 {categoriesQuery.data?.map((cat) => (
@@ -762,7 +1162,10 @@ export default function DocumentsPage() {
                 label="Archivo"
                 type="file"
                 onChange={(event) =>
-                  setUploadForm((prev) => ({ ...prev, file: event.target.files?.[0] ?? null }))
+                  setUploadForm((prev) => ({
+                    ...prev,
+                    file: event.target.files?.[0] ?? null,
+                  }))
                 }
               />
             </div>
@@ -770,11 +1173,15 @@ export default function DocumentsPage() {
               <Select
                 label="Tipo"
                 value={uploadForm.documentTypeCode}
+                disabled={!uploadIsInternal || lockDocumentIdentity}
                 onChange={(event) =>
-                  setUploadForm((prev) => ({ ...prev, documentTypeCode: event.target.value }))
+                  setUploadForm((prev) => ({
+                    ...prev,
+                    documentTypeCode: event.target.value,
+                  }))
                 }
               >
-                <option value="">No SIG</option>
+                <option value="">Selecciona un tipo</option>
                 {typesQuery.data?.map((type) => (
                   <option key={type.id} value={type.code}>
                     {type.code}
@@ -784,9 +1191,15 @@ export default function DocumentsPage() {
               <Select
                 label="Área"
                 value={uploadForm.areaCode}
-                onChange={(event) => setUploadForm((prev) => ({ ...prev, areaCode: event.target.value }))}
+                disabled={lockDocumentIdentity}
+                onChange={(event) =>
+                  setUploadForm((prev) => ({
+                    ...prev,
+                    areaCode: event.target.value,
+                  }))
+                }
               >
-                <option value="">No SIG</option>
+                <option value="">Sin área asignada</option>
                 {areasQuery.data?.map((area) => (
                   <option key={area.id} value={area.code}>
                     {area.code}
@@ -795,16 +1208,35 @@ export default function DocumentsPage() {
               </Select>
               <Input
                 label="Consecutivo"
+                type="number"
                 value={uploadForm.consecutivo}
-                onChange={(event) => setUploadForm((prev) => ({ ...prev, consecutivo: event.target.value }))}
-                placeholder="Auto"
+                disabled={!uploadIsInternal || lockDocumentIdentity}
+                onChange={(event) =>
+                  setUploadForm((prev) => ({
+                    ...prev,
+                    consecutivo: event.target.value,
+                  }))
+                }
+                placeholder="Ej. 01"
               />
             </div>
             <ResponsiveActions>
-              <Button variant="outline" onClick={() => setUploadState({ open: false, mode: 'new', document: null })}>
+              <Button
+                variant="outline"
+                onClick={() =>
+                  setUploadState({ open: false, mode: "new", document: null })
+                }
+              >
                 Cancelar
               </Button>
-              <Button onClick={submitUpload}>Guardar</Button>
+              <Button
+                onClick={submitUpload}
+                disabled={
+                  uploadIsVersion ? !canUploadVersion() : !canUploadDocument()
+                }
+              >
+                Guardar
+              </Button>
             </ResponsiveActions>
           </div>
         </Modal>

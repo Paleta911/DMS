@@ -90,6 +90,8 @@ export class DocumentsController {
         nombreDocumento: { type: 'string', example: 'Procedimiento Seguridad' },
         comentario: { type: 'string', example: 'Primera version' },
         categoryId: { type: 'number', example: 1 },
+        isInternal: { type: 'boolean', example: true },
+        documentId: { type: 'number', example: 101 },
         documentTypeCode: { type: 'string', example: 'PRO' },
         areaCode: { type: 'string', example: 'RC' },
         consecutivo: { type: 'number', example: 1 },
@@ -131,27 +133,18 @@ export class DocumentsController {
     const originalName = sanitizeUploadOriginalName(file.originalname);
 
     try {
+      // Validate real file signature to prevent extension/MIME spoofing.
       this.documentsService.assertUploadFileSignature({
         filePath: file.path,
         originalName,
         mimeType: file.mimetype,
       });
 
-      if (body.consecutivo) {
+      if (body.documentId) {
         await this.usersService.ensurePermissions(req.user.id, [
           PermissionKey.UploadNewVersion,
         ]);
       }
-
-      await this.userScopeService.assertAreaAccess({
-        actor: req.user,
-        areaCode: body.areaCode,
-        requireAreaCode: true,
-        resourceType: 'document',
-        endpoint: 'POST /documents/upload',
-        ip: req.ip,
-        userAgent: req.headers['user-agent'] as string | undefined,
-      });
 
       const textDetails = await this.documentsService.extractTextDetails({
         filePath: file.path,
@@ -169,6 +162,8 @@ export class DocumentsController {
         ocrPageCount: textDetails.ocrPageCount,
         comentario: body.comentario,
         categoryId: body.categoryId,
+        isInternal: body.isInternal,
+        documentId: body.documentId,
         documentTypeCode: body.documentTypeCode,
         areaCode: body.areaCode,
         consecutivo: body.consecutivo,
@@ -183,6 +178,8 @@ export class DocumentsController {
         meta: {
           codigo: result.codigo,
           categoryId: body.categoryId ?? null,
+          isInternal: body.isInternal ?? null,
+          documentId: body.documentId ?? null,
           textSource: textDetails.textSource,
           ocrApplied: textDetails.ocrApplied,
           ocrPageCount: textDetails.ocrPageCount,
@@ -192,6 +189,7 @@ export class DocumentsController {
       });
 
       if (result.workflowReset) {
+        // New version on approved docs reopens workflow by design.
         await this.auditLogService.log({
           userId: req.user.id,
           action: 'WORKFLOW_RESET_ON_NEW_VERSION',
@@ -205,6 +203,7 @@ export class DocumentsController {
 
       return result;
     } catch (error) {
+      // Best-effort cleanup avoids orphan files when upload flow fails mid-request.
       if (file.path && existsSync(file.path)) {
         rmSync(file.path, { force: true });
       }
@@ -217,8 +216,7 @@ export class DocumentsController {
   @Post('reprocess-content')
   @ApiBearerAuth()
   @ApiOperation({
-    summary:
-      'Reprocesa extracción de texto y OCR para documentos existentes',
+    summary: 'Reprocesa extracción de texto y OCR para documentos existentes',
   })
   async reprocessContent(
     @Body() body: ReprocessDocumentContentDto,
@@ -247,17 +245,17 @@ export class DocumentsController {
   @Get()
   @ApiBearerAuth()
   async list(@Query() query: ListDocumentsDto, @Req() req: AuthRequest) {
-    const allowedAreaCodes = await this.userScopeService.getAllowedAreaCodes(
-      req.user,
-    );
     return this.documentsService.list({
       page: query.page ?? 1,
       limit: query.limit ?? 20,
       categoryId: query.categoryId,
       documentTypeCode: query.documentTypeCode,
       areaCode: query.areaCode,
+      status: query.status,
+      from: query.from,
+      to: query.to,
       sortByName: query.sortByName,
-      allowedAreaCodes,
+      includeHiddenStatuses: req.user.role === UserRole.Admin,
     });
   }
 
@@ -272,9 +270,6 @@ export class DocumentsController {
   ) {
     const parsed = versionsLimit ? Number(versionsLimit) : 5;
     const limit = Number.isNaN(parsed) ? 5 : parsed;
-    const allowedAreaCodes = await this.userScopeService.getAllowedAreaCodes(
-      req.user,
-    );
     return this.userScopeService.runWithAccessDeniedAudit(
       {
         actor: req.user,
@@ -288,7 +283,8 @@ export class DocumentsController {
         this.documentsService.findOne(
           Number(id),
           limit,
-          allowedAreaCodes,
+          undefined,
+          req.user.role === UserRole.Admin,
         ),
     );
   }
@@ -297,22 +293,11 @@ export class DocumentsController {
   @Permissions(PermissionKey.Upload)
   @Patch(':id')
   @ApiBearerAuth()
-  async update(@Param('id') id: string, @Body() body: UpdateDocumentDto, @Req() req: AuthRequest) {
-    const allowedAreaCodes = await this.userScopeService.getAllowedAreaCodes(
-      req.user,
-    );
-    if (body.areaCode) {
-      await this.userScopeService.assertAreaAccess({
-        actor: req.user,
-        areaCode: body.areaCode,
-        requireAreaCode: false,
-        resourceType: 'document',
-        resourceId: id,
-        endpoint: 'PATCH /documents/:id',
-        ip: req.ip,
-        userAgent: req.headers['user-agent'] as string | undefined,
-      });
-    }
+  async update(
+    @Param('id') id: string,
+    @Body() body: UpdateDocumentDto,
+    @Req() req: AuthRequest,
+  ) {
     return this.userScopeService.runWithAccessDeniedAudit(
       {
         actor: req.user,
@@ -323,13 +308,18 @@ export class DocumentsController {
         userAgent: req.headers['user-agent'] as string | undefined,
       },
       async () => {
-        await this.documentsService.ensureAccess(Number(id), allowedAreaCodes);
+        await this.documentsService.ensureAccess(
+          Number(id),
+          undefined,
+          req.user.role === UserRole.Admin,
+        );
 
         const categoryId = body.categoryId === null ? null : body.categoryId;
         const updated = await this.documentsService.update(
           Number(id),
           body.nombreDocumento,
           categoryId,
+          body.isInternal,
           body.documentTypeCode,
           body.areaCode,
           body.consecutivo ?? undefined,
@@ -343,6 +333,7 @@ export class DocumentsController {
           meta: {
             codigo: updated.codigo ?? null,
             categoryId: updated.category?.id ?? null,
+            isInternal: updated.isInternal,
           },
           ip: req.ip,
           userAgent: req.headers['user-agent'] as string | undefined,
@@ -358,9 +349,6 @@ export class DocumentsController {
   @Get(':id/versions')
   @ApiBearerAuth()
   async listVersions(@Param('id') id: string, @Req() req: AuthRequest) {
-    const allowedAreaCodes = await this.userScopeService.getAllowedAreaCodes(
-      req.user,
-    );
     return this.userScopeService.runWithAccessDeniedAudit(
       {
         actor: req.user,
@@ -373,7 +361,8 @@ export class DocumentsController {
       async () =>
         this.documentsService.findVersionsByDocument(
           Number(id),
-          allowedAreaCodes,
+          undefined,
+          req.user.role === UserRole.Admin,
         ),
     );
   }
@@ -383,9 +372,6 @@ export class DocumentsController {
   @Get(':id/workflow')
   @ApiBearerAuth()
   async getWorkflow(@Param('id') id: string, @Req() req: AuthRequest) {
-    const allowedAreaCodes = await this.userScopeService.getAllowedAreaCodes(
-      req.user,
-    );
     return this.userScopeService.runWithAccessDeniedAudit(
       {
         actor: req.user,
@@ -396,7 +382,11 @@ export class DocumentsController {
         userAgent: req.headers['user-agent'] as string | undefined,
       },
       async () => {
-        await this.documentsService.ensureAccess(Number(id), allowedAreaCodes);
+        await this.documentsService.ensureAccess(
+          Number(id),
+          undefined,
+          req.user.role === UserRole.Admin,
+        );
         return this.documentsService.getWorkflow(Number(id));
       },
     );
@@ -449,9 +439,6 @@ export class DocumentsController {
   @ApiOperation({ summary: 'Submit document for review' })
   async submitReview(@Param('id') id: string, @Req() req: AuthRequest) {
     const isAdmin = req.user.role === UserRole.Admin;
-    const allowedAreaCodes = await this.userScopeService.getAllowedAreaCodes(
-      req.user,
-    );
     return this.userScopeService.runWithAccessDeniedAudit(
       {
         actor: req.user,
@@ -462,7 +449,11 @@ export class DocumentsController {
         userAgent: req.headers['user-agent'] as string | undefined,
       },
       async () => {
-        await this.documentsService.ensureAccess(Number(id), allowedAreaCodes);
+        await this.documentsService.ensureAccess(
+          Number(id),
+          undefined,
+          isAdmin,
+        );
         const result = await this.documentsService.submitReview(
           Number(id),
           req.user.id,
@@ -501,9 +492,6 @@ export class DocumentsController {
     @Body() body: DecisionDto,
     @Req() req: AuthRequest,
   ) {
-    const allowedAreaCodes = await this.userScopeService.getAllowedAreaCodes(
-      req.user,
-    );
     return this.userScopeService.runWithAccessDeniedAudit(
       {
         actor: req.user,
@@ -514,7 +502,11 @@ export class DocumentsController {
         userAgent: req.headers['user-agent'] as string | undefined,
       },
       async () => {
-        await this.documentsService.ensureAccess(Number(id), allowedAreaCodes);
+        await this.documentsService.ensureAccess(
+          Number(id),
+          undefined,
+          req.user.role === UserRole.Admin,
+        );
         const result = await this.documentsService.reviewDecision({
           documentId: Number(id),
           actorId: req.user.id,
@@ -559,9 +551,6 @@ export class DocumentsController {
     @Body() body: DecisionDto,
     @Req() req: AuthRequest,
   ) {
-    const allowedAreaCodes = await this.userScopeService.getAllowedAreaCodes(
-      req.user,
-    );
     return this.userScopeService.runWithAccessDeniedAudit(
       {
         actor: req.user,
@@ -572,7 +561,11 @@ export class DocumentsController {
         userAgent: req.headers['user-agent'] as string | undefined,
       },
       async () => {
-        await this.documentsService.ensureAccess(Number(id), allowedAreaCodes);
+        await this.documentsService.ensureAccess(
+          Number(id),
+          undefined,
+          req.user.role === UserRole.Admin,
+        );
         const result = await this.documentsService.reviewDecision({
           documentId: Number(id),
           actorId: req.user.id,

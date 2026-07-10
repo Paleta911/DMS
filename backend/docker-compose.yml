@@ -1,14 +1,13 @@
 services:
   sqlserver:
-    profiles: ['db']
     image: mcr.microsoft.com/mssql/server:2022-latest
     container_name: dms-sqlserver
     environment:
-      - ACCEPT_EULA=Y
-      - MSSQL_PID=Developer
-      - MSSQL_SA_PASSWORD=${MSSQL_SA_PASSWORD:-DmsDevPass!2026}
+      ACCEPT_EULA: Y
+      MSSQL_PID: Developer
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:?Set MSSQL_SA_PASSWORD in backend/.env}
     ports:
-      - '1433:1433'
+      - '${DB_PORT_EXTERNAL:-11433}:1433'
     volumes:
       - mssqldata:/var/opt/mssql
     healthcheck:
@@ -26,15 +25,15 @@ services:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.13.4
     container_name: dms-elasticsearch
     environment:
-      - discovery.type=single-node
-      - xpack.security.enabled=false
-      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+      discovery.type: single-node
+      xpack.security.enabled: 'false'
+      ES_JAVA_OPTS: -Xms512m -Xmx512m
     ports:
-      - '9200:9200'
+      - '${ES_PORT_EXTERNAL:-9200}:9200'
     mem_limit: 1g
     memswap_limit: 1g
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:9200/_cluster/health >/dev/null || exit 1"]
+      test: ['CMD-SHELL', 'curl -fsS http://localhost:9200/_cluster/health >/dev/null || exit 1']
       interval: 10s
       timeout: 5s
       retries: 12
@@ -44,35 +43,123 @@ services:
     deploy:
       resources:
         limits:
-          memory: 1G # Límite de memoria a 1 GB
+          memory: 1G
         reservations:
-          memory: 1G # Reservar hasta 1 GB de memoria
+          memory: 1G
 
-  kibana:
-    image: docker.elastic.co/kibana/kibana:8.13.4
-    container_name: dms-kibana
-    environment:
-      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
-    ports:
-      - '5601:5601'
-    mem_limit: 1g
-    memswap_limit: 1g
-    healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:5601/api/status >/dev/null || exit 1"]
-      interval: 15s
-      timeout: 5s
-      retries: 20
-      start_period: 30s
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: dms-backend-local
     depends_on:
+      sqlserver:
+        condition: service_healthy
       elasticsearch:
         condition: service_healthy
-    deploy:
-      resources:
-        limits:
-          memory: 1G # Límite de memoria a 1 GB
-        reservations:
-          memory: 1G # Reservar hasta 1 GB de memoria
+    environment:
+      NODE_ENV: development
+      APP_RUNTIME_ROLE: both
+      PORT: 3000
+      DB_HOST: sqlserver
+      DB_PORT: 1433
+      DB_USER: sa
+      DB_PASS: ${DB_PASS:?Set DB_PASS in backend/.env}
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:?Set MSSQL_SA_PASSWORD in backend/.env}
+      DB_NAME: ${DB_NAME:-DMS}
+      DB_ENCRYPT: 'false'
+      DB_TRUST_CERT: 'true'
+      DB_SYNC: 'false'
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in backend/.env}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-1d}
+      JWT_ACCESS_EXPIRES_IN_SEC: ${JWT_ACCESS_EXPIRES_IN_SEC:-86400}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?Set JWT_REFRESH_SECRET in backend/.env}
+      JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN:-7d}
+      UPLOAD_DIR: /app/uploads
+      BACKUP_DIR: /app/backups
+      MAX_FILE_SIZE_MB: ${MAX_FILE_SIZE_MB:-20}
+      UPLOAD_ORIGINAL_NAME_MAX_LENGTH: ${UPLOAD_ORIGINAL_NAME_MAX_LENGTH:-180}
+      ALLOWED_EXTENSIONS: ${ALLOWED_EXTENSIONS:-.pdf,.docx,.xlsx}
+      ALLOWED_MIME_TYPES: ${ALLOWED_MIME_TYPES:-application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:8080,http://127.0.0.1:8080,http://localhost:5173,http://127.0.0.1:5173}
+      LOG_FORMAT: ${LOG_FORMAT:-pretty}
+      HTTP_SLOW_REQUEST_MS: ${HTTP_SLOW_REQUEST_MS:-1000}
+      CSP_ENABLED: ${CSP_ENABLED:-true}
+      CSP_DEFAULT_SRC: ${CSP_DEFAULT_SRC:-'self'}
+      CSP_CONNECT_SRC: ${CSP_CONNECT_SRC:-'self',http://localhost:3000,http://127.0.0.1:3000,http://localhost:8080,http://127.0.0.1:8080,http://localhost:5173,http://127.0.0.1:5173}
+      CSP_IMG_SRC: ${CSP_IMG_SRC:-'self',data:,blob:}
+      CSP_STYLE_SRC: ${CSP_STYLE_SRC:-'self','unsafe-inline'}
+      CSP_FONT_SRC: ${CSP_FONT_SRC:-'self',data:}
+      CSP_SCRIPT_SRC: ${CSP_SCRIPT_SRC:-'self'}
+      THROTTLE_TTL: ${THROTTLE_TTL:-60}
+      THROTTLE_LIMIT: ${THROTTLE_LIMIT:-100}
+      ES_NODE: http://elasticsearch:9200
+      ES_INDEX_DOCUMENTS: ${ES_INDEX_DOCUMENTS:-dms_documents}
+      SEARCH_MODE: ${SEARCH_MODE:-auto}
+      SEARCH_INDEX_MAX_RETRIES: ${SEARCH_INDEX_MAX_RETRIES:-5}
+      SEARCH_INDEX_RETRY_BASE_MS: ${SEARCH_INDEX_RETRY_BASE_MS:-2000}
+      SEARCH_INDEX_RETRY_MAX_MS: ${SEARCH_INDEX_RETRY_MAX_MS:-30000}
+      SEARCH_INDEX_WORKER_MS: ${SEARCH_INDEX_WORKER_MS:-3000}
+      SEARCH_INDEX_BATCH_SIZE: ${SEARCH_INDEX_BATCH_SIZE:-10}
+      OCR_ENABLED: ${OCR_ENABLED:-true}
+      OCR_TESSERACT_BIN: tesseract
+      OCR_PDFTOPPM_BIN: pdftoppm
+      OCR_LANGS: ${OCR_LANGS:-spa+eng}
+      OCR_DPI: ${OCR_DPI:-300}
+      OCR_MAX_PAGES: ${OCR_MAX_PAGES:-10}
+      OCR_TIMEOUT_MS: ${OCR_TIMEOUT_MS:-120000}
+      TESSDATA_PREFIX: ''
+      FEATURE_FLAGS: ${FEATURE_FLAGS:-audit-json-export,admin-analytics,notifications,saved-views,advanced-exports,dark-mode,i18n}
+      ALLOWED_EMAIL_DOMAIN: ${ALLOWED_EMAIL_DOMAIN:-bsm.com.mx}
+      EMAIL_MODE: ${EMAIL_MODE:-console}
+      VERIFICATION_CODE_TTL_MIN: ${VERIFICATION_CODE_TTL_MIN:-15}
+      VERIFICATION_MAX_ATTEMPTS: ${VERIFICATION_MAX_ATTEMPTS:-5}
+      SMTP_PORT: ${SMTP_PORT:-587}
+    command:
+      [
+        'sh',
+        '-c',
+        'node scripts/ensure-db.mjs && node ./node_modules/typeorm/cli.js migration:run -d dist/src/data-source.js && node dist/src/main.js',
+      ]
+    ports:
+      - '${BACKEND_PORT:-3000}:3000'
+    volumes:
+      - backend_uploads:/app/uploads
+      - backend_backups:/app/backups
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'node -e "fetch(\"http://127.0.0.1:3000/health\").then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"',
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 45s
+
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:3000}
+        VITE_FEATURE_FLAGS: ${VITE_FEATURE_FLAGS:-admin-analytics,notifications,saved-views,advanced-exports,dark-mode,i18n}
+        VITE_DEFAULT_LOCALE: ${VITE_DEFAULT_LOCALE:-es}
+    container_name: dms-frontend-local
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - '${FRONTEND_PORT:-8080}:80'
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -q -O /dev/null http://127.0.0.1/ || exit 1']
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
 
 volumes:
   esdata:
   mssqldata:
+  backend_uploads:
+  backend_backups:

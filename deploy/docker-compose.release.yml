@@ -66,7 +66,7 @@ services:
     environment:
       ACCEPT_EULA: Y
       MSSQL_PID: ${MSSQL_PID:-Developer}
-      MSSQL_SA_PASSWORD: ${DB_PASS}
+      MSSQL_SA_PASSWORD: ${DB_PASS:?Set DB_PASS in deploy/.env}
     ports:
       - '${DB_PORT_EXTERNAL:-1433}:1433'
     volumes:
@@ -143,7 +143,7 @@ services:
     restart: unless-stopped
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:?Set GRAFANA_PASSWORD in deploy/.env}
     ports:
       - '${GRAFANA_PORT:-3001}:3000'
     volumes:

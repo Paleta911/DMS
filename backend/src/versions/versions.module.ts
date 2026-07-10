@@ -11,12 +11,14 @@ import { Document } from '../documents/document.entity';
 import { AuditLogModule } from '../audit-log/audit-log.module';
 import { UsersModule } from '../users/users.module';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
+import { DocumentVisibilityModule } from '../document-visibility/document-visibility.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Version, Document]),
     AuditLogModule,
     UsersModule,
+    DocumentVisibilityModule,
   ],
   controllers: [VersionsController],
   providers: [

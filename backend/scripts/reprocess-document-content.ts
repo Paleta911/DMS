@@ -3,6 +3,7 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from '../src/app.module';
 import { DocumentsService } from '../src/documents/documents.service';
 
+// CLI options for selective content reprocessing (single document or full run with force).
 type CliOptions = {
   documentId?: number;
   force?: boolean;
@@ -28,6 +29,7 @@ function parseArgs(argv: string[]): CliOptions {
 }
 
 async function main() {
+  // Create DI context without HTTP server to execute service logic from CLI.
   const options = parseArgs(process.argv.slice(2));
   const app = await NestFactory.createApplicationContext(AppModule, {
     logger: ['log', 'warn', 'error'],
@@ -35,6 +37,7 @@ async function main() {
 
   try {
     const documentsService = app.get(DocumentsService);
+    // Recompute OCR/indexable content using same business rules as runtime pipeline.
     const result = await documentsService.reprocessContent(options);
     console.log('[documents:reprocess-content] done', JSON.stringify(result));
   } finally {

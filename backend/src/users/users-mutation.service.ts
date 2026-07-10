@@ -8,6 +8,8 @@ import { PermissionFlags } from './permissions';
 import { UserStatus } from './user-status.enum';
 import { getEnvNumber } from '../common/env.utils';
 
+// User mutation service: create, update, and area assignment with transaction-aware EntityManager support
+// Encapsulates user creation with role/status/permission defaults; manages area code relationships
 @Injectable()
 export class UsersMutationService {
   constructor(
@@ -19,7 +21,12 @@ export class UsersMutationService {
     return manager ? manager.getRepository(User) : this.userRepo;
   }
 
-  async setAllowedAreas(userId: number, areas: AreaCode[], manager?: EntityManager) {
+  // Set user's allowed area codes (admin-assigned operational areas with permissions)
+  async setAllowedAreas(
+    userId: number,
+    areas: AreaCode[],
+    manager?: EntityManager,
+  ) {
     const repo = this.userRepository(manager);
     const user = await repo.findOne({
       where: { id: userId },
@@ -47,6 +54,7 @@ export class UsersMutationService {
     approvedById?: number | null;
     rejectedAt?: Date | null;
     rejectedReason?: string | null;
+    requestedAreaNombre?: string | null;
     isSuperAdmin?: boolean;
     permissions?: PermissionFlags;
     failedLoginAttempts?: number;
@@ -69,6 +77,7 @@ export class UsersMutationService {
       approvedById: params.approvedById ?? null,
       rejectedAt: params.rejectedAt ?? null,
       rejectedReason: params.rejectedReason ?? null,
+      requestedAreaNombre: params.requestedAreaNombre ?? null,
       isSuperAdmin: params.isSuperAdmin ?? false,
       ...(params.permissions ?? {}),
       failedLoginAttempts: params.failedLoginAttempts ?? 0,
@@ -90,24 +99,33 @@ export class UsersMutationService {
       getEnvNumber('AUTH_LOGIN_RESET_WINDOW_SEC', 3600),
     );
     const blockAfter = Math.max(3, getEnvNumber('AUTH_LOGIN_BLOCK_AFTER', 5));
-    const blockSec = Math.max(60, getEnvNumber('AUTH_LOGIN_BLOCK_SEC', 900));
+    const blockSec = Math.max(60, getEnvNumber('AUTH_LOGIN_BLOCK_SEC', 300));
 
     const lastFailedAt = user.lastFailedLoginAt?.getTime() ?? 0;
+    const blockedUntilMs = user.loginBlockedUntil?.getTime() ?? null;
     const shouldResetCounter =
       !lastFailedAt ||
       now.getTime() - lastFailedAt > resetWindowSec * 1000 ||
-      (user.loginBlockedUntil?.getTime() ?? 0) <= now.getTime();
+      (blockedUntilMs !== null && blockedUntilMs <= now.getTime());
 
-    user.failedLoginAttempts = shouldResetCounter
+    const failedLoginAttempts = shouldResetCounter
       ? 1
       : (user.failedLoginAttempts ?? 0) + 1;
+    const loginBlockedUntil =
+      failedLoginAttempts >= blockAfter
+        ? new Date(now.getTime() + blockSec * 1000)
+        : null;
+
+    user.failedLoginAttempts = failedLoginAttempts;
     user.lastFailedLoginAt = now;
+    user.loginBlockedUntil = loginBlockedUntil;
 
-    if (user.failedLoginAttempts >= blockAfter) {
-      user.loginBlockedUntil = new Date(now.getTime() + blockSec * 1000);
-    }
-
-    return repo.save(user);
+    await repo.update(user.id, {
+      failedLoginAttempts: user.failedLoginAttempts,
+      lastFailedLoginAt: user.lastFailedLoginAt,
+      loginBlockedUntil,
+    });
+    return user;
   }
 
   async clearFailedLoginState(user: User, manager?: EntityManager) {
@@ -115,6 +133,11 @@ export class UsersMutationService {
     user.failedLoginAttempts = 0;
     user.lastFailedLoginAt = null;
     user.loginBlockedUntil = null;
-    return repo.save(user);
+    await repo.update(user.id, {
+      failedLoginAttempts: 0,
+      lastFailedLoginAt: null,
+      loginBlockedUntil: null,
+    });
+    return user;
   }
 }

@@ -1,4 +1,14 @@
-import { Body, Controller, Get, Param, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Query,
+  Req,
+  Res,
+  UseGuards,
+} from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
@@ -16,6 +26,7 @@ import {
   throttleFromEnv,
 } from '../common/throttle.utils';
 
+// Admin write throttle mitigates accidental double-submits and scripted abuse.
 const adminPermissionWriteThrottle = throttleFromEnv(
   'ADMIN_PERMISSION_ACTION_LIMIT',
   'ADMIN_PERMISSION_ACTION_TTL_SEC',
@@ -48,7 +59,10 @@ export class AdminPermissionRequestsController {
   @Roles(UserRole.Admin)
   @Get('export.csv')
   @ApiBearerAuth()
-  async exportCsv(@Query() query: PermissionRequestsQueryDto, @Res() res: Response) {
+  async exportCsv(
+    @Query() query: PermissionRequestsQueryDto,
+    @Res() res: Response,
+  ) {
     const csv = await this.requestsService.exportCsv({
       status: query.status,
       type: query.type,
@@ -63,8 +77,12 @@ export class AdminPermissionRequestsController {
       String(now.getDate()).padStart(2, '0'),
     ].join('-');
 
+    // UTF-8 BOM keeps accented characters readable in spreadsheet tools.
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-    res.setHeader('Content-Disposition', `attachment; filename=\"solicitudes-${datePart}.csv\"`);
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename=\"solicitudes-${datePart}.csv\"`,
+    );
     res.send(`\uFEFF${csv}`);
   }
 
@@ -85,6 +103,7 @@ export class AdminPermissionRequestsController {
     @Param('id') id: string,
     @Req() req: Request & { user?: { id?: number } },
   ) {
+    // Admin identity is taken from JWT context for audit traceability.
     const adminId = req.user?.id ?? 0;
     return this.requestsService.approveRequest({
       id: Number(id),
@@ -104,6 +123,7 @@ export class AdminPermissionRequestsController {
     @Body() body: ApprovePartialPermissionRequestDto,
     @Req() req: Request & { user?: { id?: number } },
   ) {
+    // Partial approval is used for area requests when only subset should be granted.
     const adminId = req.user?.id ?? 0;
     return this.requestsService.approvePartialAreaRequest({
       id: Number(id),
@@ -125,6 +145,7 @@ export class AdminPermissionRequestsController {
     @Body() body: RejectPermissionRequestDto,
     @Req() req: Request & { user?: { id?: number } },
   ) {
+    // Rejection can include reviewer reason for transparency.
     const adminId = req.user?.id ?? 0;
     return this.requestsService.rejectRequest({
       id: Number(id),

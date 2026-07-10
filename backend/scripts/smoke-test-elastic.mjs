@@ -26,7 +26,14 @@ loadEnvFromFile();
 const esNode = process.env.ES_NODE ?? 'http://127.0.0.1:9200';
 const baseUrl = process.env.SMOKE_BASE_URL ?? 'http://127.0.0.1:3000';
 const adminEmail = process.env.SMOKE_ADMIN_EMAIL ?? 'admin@local.com';
-const adminPassword = process.env.SMOKE_ADMIN_PASSWORD ?? 'Admin123';
+const adminPassword =
+  process.env.SMOKE_ADMIN_PASSWORD ??
+  `LocalSmoke${process.pid}${Date.now()}Aa1`;
+const bootstrapToken = process.env.BOOTSTRAP_TOKEN;
+
+function bootstrapHeaders() {
+  return bootstrapToken ? { 'x-bootstrap-token': bootstrapToken } : {};
+}
 
 function assert(condition, message) {
   if (!condition) {
@@ -53,6 +60,41 @@ async function requestJson(url, options = {}) {
     data = text;
   }
   return { res, data };
+}
+
+function unwrapListPayload(data) {
+  if (Array.isArray(data)) {
+    return data;
+  }
+  if (Array.isArray(data?.items)) {
+    return data.items;
+  }
+  return [];
+}
+
+function getSearchTotal(data) {
+  if (typeof data?.total === 'number') {
+    return data.total;
+  }
+  return data?.total?.value ?? 0;
+}
+
+function normalizeDocumentSearchFields(document) {
+  const q =
+    document?.nombre ??
+    document?.name ??
+    document?.codigo ??
+    null;
+  const documentTypeCode =
+    document?.documentTypeCode ??
+    document?.documentType?.code ??
+    null;
+  const areaCode =
+    (typeof document?.areaCode === 'string'
+      ? document.areaCode
+      : document?.areaCode?.code) ?? null;
+
+  return { q, documentTypeCode, areaCode };
 }
 
 async function fetchWithTimeout(url, timeoutMs, options) {
@@ -117,6 +159,25 @@ async function waitForHealth(params = { totalMs: 120000 }) {
 }
 
 function killPort(port) {
+  if (process.platform !== 'win32') {
+    const fuser = spawnSync('fuser', ['-k', `${port}/tcp`], {
+      stdio: 'ignore',
+    });
+    if (fuser.status === 0) {
+      return;
+    }
+
+    const lsof = spawnSync('lsof', ['-ti', `tcp:${port}`], {
+      encoding: 'utf8',
+    });
+    if (lsof.status === 0 && lsof.stdout) {
+      for (const pid of lsof.stdout.split(/\s+/).filter(Boolean)) {
+        spawnSync('kill', ['-9', pid], { stdio: 'ignore' });
+      }
+    }
+    return;
+  }
+
   const netstat = spawnSync('netstat', ['-aon'], {
     encoding: 'utf8',
     shell: true,
@@ -272,6 +333,7 @@ async function main() {
 
     const bootstrap = await requestJson(`${baseUrl}/auth/bootstrap-admin`, {
       method: 'POST',
+      headers: bootstrapHeaders(),
       body: JSON.stringify({ email: adminEmail, password: adminPassword }),
     });
     if (
@@ -322,26 +384,54 @@ async function main() {
       await new Promise((resolve) => setTimeout(resolve, 1000));
     }
 
+    const documents = await requestJson(`${baseUrl}/documents?limit=10`, {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    assert(
+      documents.res.ok,
+      `[documents:list] failed: ${documents.res.status} ${JSON.stringify(
+        documents.data,
+      )}`,
+    );
+
+    const searchableDocument = unwrapListPayload(documents.data)
+      .map((item) => normalizeDocumentSearchFields(item))
+      .find(
+        (item) =>
+          typeof item.q === 'string' &&
+          item.q.trim().length > 0 &&
+          typeof item.documentTypeCode === 'string' &&
+          item.documentTypeCode.trim().length > 0 &&
+          typeof item.areaCode === 'string' &&
+          item.areaCode.trim().length > 0,
+      );
+
+    assert(
+      searchableDocument,
+      '[documents:list] no searchable document available for elastic smoke',
+    );
+
+    const searchParams = new URLSearchParams({
+      q: searchableDocument.q,
+      documentTypeCode: searchableDocument.documentTypeCode,
+      areaCode: searchableDocument.areaCode,
+    });
+
     let search;
     let searchTotal = 0;
     for (let attempt = 1; attempt <= 10; attempt += 1) {
-      search = await requestJson(
-        `${baseUrl}/search?q=PRO&documentTypeCode=PRO&areaCode=RC`,
-        {
-          method: 'GET',
-          headers: { Authorization: `Bearer ${token}` },
-        },
-      );
+      search = await requestJson(`${baseUrl}/search?${searchParams.toString()}`, {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${token}` },
+      });
       assert(search.res.ok, `[search] failed: ${search.res.status}`);
       console.log('[smoke:elastic] engine:', search.data?.engine);
       assert(
         search.data?.engine === 'elastic',
         `[search] expected engine elastic, got ${search.data?.engine}`,
       );
-      searchTotal =
-        typeof search.data?.total === 'number'
-          ? search.data.total
-          : search.data?.total?.value ?? 0;
+      searchTotal = getSearchTotal(search.data);
       if (searchTotal >= 1) {
         break;
       }

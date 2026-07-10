@@ -3,9 +3,16 @@ import { resolveInfraEnv, waitForDependency, checkSqlReady } from './lib/infra-u
 
 const baseUrl = process.env.SMOKE_BASE_URL ?? 'http://127.0.0.1:3000';
 const adminEmail = process.env.SMOKE_ADMIN_EMAIL ?? 'admin@local.com';
-const adminPassword = process.env.SMOKE_ADMIN_PASSWORD ?? 'Admin123';
+const adminPassword =
+  process.env.SMOKE_ADMIN_PASSWORD ??
+  `LocalSmoke${process.pid}${Date.now()}Aa1`;
+const bootstrapToken = process.env.BOOTSTRAP_TOKEN;
 const allowedDomain = process.env.ALLOWED_EMAIL_DOMAIN ?? 'bsm.com.mx';
 const infraEnv = resolveInfraEnv();
+
+function bootstrapHeaders() {
+  return bootstrapToken ? { 'x-bootstrap-token': bootstrapToken } : {};
+}
 
 function assert(condition, message) {
   if (!condition) {
@@ -36,6 +43,16 @@ async function requestJson(url, options = {}) {
     data = text;
   }
   return { res, data };
+}
+
+function unwrapListPayload(data) {
+  if (Array.isArray(data)) {
+    return data;
+  }
+  if (Array.isArray(data?.items)) {
+    return data.items;
+  }
+  return [];
 }
 
 async function waitForHealth(url, attempts = 120, delayMs = 500) {
@@ -78,6 +95,25 @@ function runBuildOrThrow() {
 }
 
 function killPort(port) {
+  if (process.platform !== 'win32') {
+    const fuser = spawnSync('fuser', ['-k', `${port}/tcp`], {
+      stdio: 'ignore',
+    });
+    if (fuser.status === 0) {
+      return;
+    }
+
+    const lsof = spawnSync('lsof', ['-ti', `tcp:${port}`], {
+      encoding: 'utf8',
+    });
+    if (lsof.status === 0 && lsof.stdout) {
+      for (const pid of lsof.stdout.split(/\s+/).filter(Boolean)) {
+        spawnSync('kill', ['-9', pid], { stdio: 'ignore' });
+      }
+    }
+    return;
+  }
+
   const netstat = spawnSync('netstat', ['-aon'], {
     encoding: 'utf8',
     shell: true,
@@ -256,6 +292,7 @@ async function main() {
 
     const bootstrap = await requestJson(`${baseUrl}/auth/bootstrap-admin`, {
       method: 'POST',
+      headers: bootstrapHeaders(),
       body: JSON.stringify({ email: adminEmail, password: adminPassword }),
     });
     if (
@@ -282,6 +319,18 @@ async function main() {
     const adminToken = loginAdmin.data?.accessToken;
     assert(adminToken, '[admin:login] missing accessToken');
 
+    const publicAreas = await requestJson(`${baseUrl}/area-codes/public`, {
+      method: 'GET',
+    });
+    assert(
+      publicAreas.res.ok,
+      `[area-codes:public] failed: ${publicAreas.res.status} ${JSON.stringify(
+        publicAreas.data,
+      )}`,
+    );
+    const selectedArea = unwrapListPayload(publicAreas.data)[0];
+    assert(selectedArea?.code, '[area-codes:public] missing active area code');
+
     const email = `registro-${Date.now()}@${allowedDomain}`;
     const password = 'User1234';
     const register = await requestJson(`${baseUrl}/auth/register`, {
@@ -293,6 +342,7 @@ async function main() {
         email,
         telefono: '2280000000',
         fechaNacimiento: '1998-01-15',
+        areaCode: selectedArea.code,
         password,
         confirmPassword: password,
       }),
@@ -392,6 +442,124 @@ async function main() {
     );
     console.log('[smoke:registration] default permissions ok');
 
+    const suspend = await requestJson(
+      `${baseUrl}/admin/registrations/${userId}`,
+      {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${adminToken}` },
+      },
+    );
+    assert(
+      suspend.res.ok,
+      `[registration:suspend] failed: ${suspend.res.status} ${JSON.stringify(
+        suspend.data,
+      )}`,
+    );
+    assert(
+      suspend.data?.status === 'DELETED',
+      `[registration:suspend] expected DELETED, got ${suspend.data?.status}`,
+    );
+
+    const suspendedLogin = await requestJson(`${baseUrl}/auth/login`, {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    });
+    assert(
+      suspendedLogin.res.status === 403,
+      `[login:suspended] expected 403, got ${suspendedLogin.res.status}`,
+    );
+    assert(
+      suspendedLogin.data?.code === 'AUTH_ACCOUNT_SUSPENDED',
+      `[login:suspended] expected AUTH_ACCOUNT_SUSPENDED, got ${suspendedLogin.data?.code}`,
+    );
+
+    const suspendedMe = await requestJson(`${baseUrl}/users/me`, {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${userToken}` },
+    });
+    assert(
+      suspendedMe.res.status === 401 || suspendedMe.res.status === 403,
+      `[users:me:suspended] expected 401/403, got ${suspendedMe.res.status}`,
+    );
+
+    const restore = await requestJson(`${baseUrl}/users/${userId}/restore`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${adminToken}` },
+    });
+    assert(
+      restore.res.ok,
+      `[users:restore] failed: ${restore.res.status} ${JSON.stringify(
+        restore.data,
+      )}`,
+    );
+    assert(
+      restore.data?.status === 'APPROVED',
+      `[users:restore] expected APPROVED, got ${restore.data?.status}`,
+    );
+
+    const restoredLogin = await requestJson(`${baseUrl}/auth/login`, {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    });
+    assert(
+      restoredLogin.res.ok,
+      `[login:restored] failed: ${restoredLogin.res.status} ${JSON.stringify(
+        restoredLogin.data,
+      )}`,
+    );
+    const restoredToken = restoredLogin.data?.accessToken;
+    assert(restoredToken, '[login:restored] missing accessToken');
+
+    const permanentDelete = await requestJson(
+      `${baseUrl}/users/${userId}/permanent`,
+      {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${adminToken}` },
+      },
+    );
+    assert(
+      permanentDelete.res.ok,
+      `[users:permanent-delete] failed: ${permanentDelete.res.status} ${JSON.stringify(
+        permanentDelete.data,
+      )}`,
+    );
+
+    const removedLogin = await requestJson(`${baseUrl}/auth/login`, {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    });
+    assert(
+      removedLogin.res.status === 403,
+      `[login:removed] expected 403, got ${removedLogin.res.status}`,
+    );
+    assert(
+      removedLogin.data?.code === 'AUTH_ACCOUNT_REMOVED',
+      `[login:removed] expected AUTH_ACCOUNT_REMOVED, got ${removedLogin.data?.code}`,
+    );
+
+    const removedRegister = await requestJson(`${baseUrl}/auth/register`, {
+      method: 'POST',
+      body: JSON.stringify({
+        nombre: 'Registro',
+        primerApellido: 'Prueba',
+        segundoApellido: 'Demo',
+        email,
+        telefono: '2280000000',
+        fechaNacimiento: '1998-01-15',
+        areaCode: selectedArea.code,
+        password,
+        confirmPassword: password,
+      }),
+    });
+    assert(
+      removedRegister.res.status === 400,
+      `[register:removed-email] expected 400, got ${removedRegister.res.status}`,
+    );
+    assert(
+      removedRegister.data?.code === 'AUTH_ACCOUNT_REMOVED',
+      `[register:removed-email] expected AUTH_ACCOUNT_REMOVED, got ${removedRegister.data?.code}`,
+    );
+
     const audits = await requestJson(`${baseUrl}/audit-logs?page=1&limit=100`, {
       method: 'GET',
       headers: { Authorization: `Bearer ${adminToken}` },
@@ -415,13 +583,33 @@ async function main() {
     assert(
       hasAction(
         'EMAIL_VERIFIED',
-        (item) => Number(item.userId ?? 0) === Number(userId),
+        (item) =>
+          Number(item.userId ?? 0) === Number(userId) ||
+          item.resourceId === String(userId) ||
+          String(item.meta ?? '').includes(email),
       ),
       `[audit-logs] missing EMAIL_VERIFIED for user ${userId}`,
     );
     assert(
       hasAction('REG_APPROVED', (item) => item.resourceId === String(userId)),
       `[audit-logs] missing REG_APPROVED for user ${userId}`,
+    );
+    assert(
+      hasAction('USER_SUSPENDED', (item) => item.resourceId === String(userId)),
+      `[audit-logs] missing USER_SUSPENDED for user ${userId}`,
+    );
+    assert(
+      hasAction('USER_RESTORED', (item) => item.resourceId === String(userId)),
+      `[audit-logs] missing USER_RESTORED for user ${userId}`,
+    );
+    assert(
+      hasAction(
+        'USER_HARD_DELETED',
+        (item) =>
+          item.resourceId === String(userId) ||
+          String(item.meta ?? '').includes(email),
+      ),
+      `[audit-logs] missing USER_HARD_DELETED for user ${userId}`,
     );
     console.log('[smoke:registration] audit trail ok');
 

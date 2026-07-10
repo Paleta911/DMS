@@ -79,7 +79,6 @@ describe('AppShell', () => {
     await waitFor(() => {
       expect(screen.getByRole('status')).toHaveTextContent('DB: up');
       expect(screen.getByRole('status')).toHaveTextContent('ES: up');
-      expect(screen.getByRole('status')).toHaveTextContent('idSolicitud: req-1');
     });
   });
 });

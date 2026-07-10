@@ -3,6 +3,7 @@ import { AppDataSource } from '../src/data-source';
 import { DocumentType } from '../src/document-types/document-type.entity';
 import { AreaCode } from '../src/area-codes/area-code.entity';
 
+// Baseline master data for local/dev bootstrapping.
 const DOCUMENT_TYPES = [
   { code: 'MGCI', nombreLargo: 'Manual de Gestion de Calidad Integrado' },
   { code: 'MC', nombreLargo: 'Manual de Calidad' },
@@ -36,6 +37,7 @@ export async function runSeed() {
   const areaCodeRepo = AppDataSource.getRepository(AreaCode);
 
   for (const type of DOCUMENT_TYPES) {
+    // Seed is idempotent: only insert missing catalog rows.
     const exists = await documentTypeRepo.findOne({
       where: { code: type.code },
     });
@@ -65,6 +67,7 @@ export async function runSeed() {
 }
 
 if (require.main === module) {
+  // Script mode for npm/yarn tasks and CI local setup.
   runSeed()
     .then(() => {
       console.log('[seed] completed');

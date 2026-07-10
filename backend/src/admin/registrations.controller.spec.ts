@@ -6,6 +6,7 @@ import { SuperAdminGuard } from '../auth/guards/super-admin.guard';
 import { ROLES_KEY } from '../auth/roles.decorator';
 import { UserRole } from '../users/user-role.enum';
 
+// Metadata regression tests guarantee super-admin protections remain attached to sensitive endpoints.
 describe('RegistrationsController authz metadata', () => {
   const target = RegistrationsController.prototype;
 

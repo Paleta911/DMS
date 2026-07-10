@@ -3,7 +3,8 @@ export type UserStatus =
   | 'PENDING_VERIFICATION'
   | 'PENDING_APPROVAL'
   | 'APPROVED'
-  | 'REJECTED';
+  | 'REJECTED'
+  | 'DELETED';
 
 export type PermissionFlags = {
   canAccess: boolean;
@@ -31,6 +32,15 @@ export type AuthUser = {
   approvedById?: number | null;
   rejectedAt?: string | null;
   rejectedReason?: string | null;
+  requestedAreaNombre?: string | null;
+  deletedAt?: string | null;
+  deletedById?: number | null;
+  sendStatus?: string | null;
+  sendAttempts?: number;
+  lastSentAt?: string | null;
+  lastError?: string | null;
+  verifyAttempts?: number;
+  lastAttemptAt?: string | null;
   isSuperAdmin?: boolean;
   permissions?: PermissionFlags;
 };

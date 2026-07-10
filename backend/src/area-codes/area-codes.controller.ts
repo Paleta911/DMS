@@ -22,6 +22,7 @@ import { CreateAreaCodeDto } from './dto/create-area-code.dto';
 import { UpdateAreaCodeDto } from './dto/update-area-code.dto';
 import { HttpAuditService } from '../audit-log/http-audit.service';
 
+// Area codes controller: CRUD endpoints for organizational divisions; public list endpoint for registration form
 @ApiTags('area-codes')
 @Controller('area-codes')
 export class AreaCodesController {
@@ -30,6 +31,13 @@ export class AreaCodesController {
     private readonly httpAuditService: HttpAuditService,
   ) {}
 
+  // Public endpoint: list active areas for registration form (no auth needed)
+  @Get('public')
+  findPublicList() {
+    return this.areaCodesService.findActiveList();
+  }
+
+  // List areas with optional filtering/pagination (authenticated users)
   @UseGuards(JwtAuthGuard)
   @Get()
   @ApiBearerAuth()
@@ -37,6 +45,7 @@ export class AreaCodesController {
     return this.areaCodesService.findAll({
       q: query.q,
       includeInactive: query.includeInactive,
+      status: query.status,
       page: query.page,
       limit: query.limit,
     });
@@ -86,6 +95,21 @@ export class AreaCodesController {
       action: 'AREA_CODE_DEACTIVATED',
       resourceType: 'area_code',
       resourceId: id,
+    });
+    return result;
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.Admin)
+  @Delete(':id/permanent')
+  @ApiBearerAuth()
+  async hardDelete(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
+    const result = await this.areaCodesService.hardDelete(id);
+    await this.httpAuditService.logFromRequest(req, {
+      action: 'AREA_CODE_DELETED',
+      resourceType: 'area_code',
+      resourceId: id,
+      meta: { code: result.code, nombre: result.nombre },
     });
     return result;
   }

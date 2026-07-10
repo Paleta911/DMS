@@ -1,5 +1,5 @@
 import { Transform, Type } from 'class-transformer';
-import { IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
+import { IsIn, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 
 function toBoolean(value: unknown) {
   if (typeof value === 'boolean') {
@@ -19,6 +19,10 @@ export class ListCatalogDto {
   @IsOptional()
   @Transform(({ value }) => toBoolean(value))
   includeInactive?: boolean;
+
+  @IsOptional()
+  @IsIn(['active', 'inactive', 'all'])
+  status?: 'active' | 'inactive' | 'all';
 
   @IsOptional()
   @Type(() => Number)

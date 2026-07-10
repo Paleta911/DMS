@@ -4,6 +4,12 @@ Repositorio del sistema DMS SIG con dos aplicaciones:
 - `backend/`: API NestJS + SQL Server + Elasticsearch
 - `frontend/`: cliente React/Vite
 
+## Licencia
+
+Este proyecto usa Apache License 2.0. Es la mejor opcion para este caso porque permite colaboracion publica y uso comercial, pero exige conservar avisos de copyright/licencia y el archivo `NOTICE`, ademas de incluir una concesion explicita de patentes.
+
+MIT tambien exige conservar el aviso de copyright, pero ofrece menos proteccion formal alrededor de patentes y avisos de cambios. GPLv3 protege mas fuerte el codigo porque obliga a distribuir derivados bajo la misma licencia, pero puede reducir adopcion e integraciones. Si el objetivo principal es evitar copias sin atribucion sin cerrar demasiado el proyecto, Apache-2.0 es el equilibrio mas practico.
+
 ## Estructura
 
 ```text
@@ -19,6 +25,7 @@ DMS/
 ```powershell
 cd C:\Users\alexi\DMS\backend
 Copy-Item .env.example .env
+# Edita .env y reemplaza todos los valores REPLACE_WITH_...
 npm install
 npm run dev:prepare
 npm run start:dev
@@ -33,6 +40,13 @@ Copy-Item .env.example .env
 npm install
 npm run dev
 ```
+
+## Seguridad de credenciales
+
+- Nunca subas archivos `.env` reales al repositorio.
+- Usa `.env.example` solo como plantilla y reemplaza los placeholders en tu `.env` local.
+- En GitHub Actions y despliegues, guarda secretos reales en GitHub Secrets o en el administrador de secretos del servidor.
+- Si una credencial real ya fue compartida o commiteada, revocala y genera una nueva; borrar el texto del codigo no invalida el secreto expuesto.
 
 ## URLs utiles
 - Frontend: `http://localhost:5173`
@@ -94,6 +108,37 @@ El workflow `.github/workflows/ci.yml`:
 - corre validacion estricta del backend
 - compila y prueba el frontend
 - sube artefactos de diagnostico si falla
+
+## Contribuir
+
+La rama `main` debe estar protegida en GitHub. Nadie debe hacer push directo a `main`, ni siquiera mantenedores, salvo una emergencia documentada.
+
+Flujo obligatorio:
+
+1. Actualiza tu copia local desde `main`.
+2. Crea una rama propia desde `main`, por ejemplo `feature/nombre-del-cambio`, `fix/nombre-del-bug` o `docs/nombre-del-ajuste`.
+3. Haz commits pequeños y descriptivos en tu rama.
+4. Ejecuta las pruebas o validaciones aplicables antes de abrir el PR.
+5. Sube tu rama y abre un Pull Request hacia `main`.
+6. Espera revision y CI en verde antes de fusionar.
+
+Ejemplo:
+
+```powershell
+git switch main
+git pull origin main
+git switch -c feature/mi-cambio
+# hacer cambios
+git add .
+git commit -m "Describe el cambio"
+git push -u origin feature/mi-cambio
+```
+
+Reglas de PR:
+- El PR debe apuntar a `main`.
+- No se aceptan PRs con credenciales reales, archivos `.env`, logs locales o artefactos temporales.
+- Los cambios deben mantener actualizada la documentacion cuando afecten instalacion, seguridad, API o despliegue.
+- La fusion a `main` se hace desde Pull Request aprobado, no por push directo.
 
 ## Deploy y multiambiente
 

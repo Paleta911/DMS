@@ -5,6 +5,7 @@ import { getEnv, getEnvBool, getEnvNumber } from './common/env.utils';
 
 dotenv.config();
 
+// DataSource usado por TypeORM CLI y procesos de migracion fuera del runtime Nest.
 export const AppDataSource = new DataSource({
   type: 'mssql',
   host: getEnv('DB_HOST', 'localhost'),
@@ -17,6 +18,7 @@ export const AppDataSource = new DataSource({
   migrationsRun: false,
   synchronize: false,
   options: {
+    // Flags TLS configurables para entornos locales/servidor SQL administrado.
     encrypt: getEnvBool('DB_ENCRYPT', false),
     trustServerCertificate: getEnvBool('DB_TRUST_CERT', true),
   },

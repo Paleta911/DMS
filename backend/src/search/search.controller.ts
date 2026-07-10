@@ -12,7 +12,6 @@ import type { Request } from 'express';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { Permissions } from '../auth/permissions.decorator';
 import { PermissionKey } from '../users/permissions';
-import { UserScopeService } from '../users/user-scope.service';
 import {
   throttleByUserIdOrIp,
   throttleFromEnv,
@@ -32,7 +31,6 @@ export class SearchController {
   constructor(
     private readonly searchService: SearchService,
     private readonly auditLogService: AuditLogService,
-    private readonly userScopeService: UserScopeService,
   ) {}
 
   @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -43,25 +41,10 @@ export class SearchController {
     @Query() query: SearchQueryDto,
     @Req() req: Request & { user?: { id: number; role: UserRole } },
   ) {
-    const actor = req.user;
-    const allowedAreaCodes = await this.userScopeService.getAllowedAreaCodes(
-      actor,
-    );
-    if (actor && query.areaCode) {
-      await this.userScopeService.assertAreaAccess({
-        actor,
-        areaCode: query.areaCode,
-        requireAreaCode: false,
-        resourceType: 'search',
-        endpoint: 'GET /search',
-        ip: req.ip,
-        userAgent: req.headers['user-agent'] as string | undefined,
-      });
-    }
-
+    // Admin can include hidden statuses; regular users always get filtered visibility.
     const result = await this.searchService.search({
       ...query,
-      allowedAreaCodes,
+      includeHiddenStatuses: req.user?.role === UserRole.Admin,
     });
     await this.auditLogService.log({
       userId: req.user?.id ?? null,
@@ -72,6 +55,9 @@ export class SearchController {
         categoryId: query.categoryId ?? null,
         documentTypeCode: query.documentTypeCode ?? null,
         areaCode: query.areaCode ?? null,
+        status: query.status ?? null,
+        from: query.from ?? null,
+        to: query.to ?? null,
       },
       ip: req.ip,
       userAgent: req.headers['user-agent'] as string | undefined,
@@ -85,6 +71,7 @@ export class SearchController {
   @Post('reindex')
   @ApiBearerAuth()
   reindex() {
+    // Expensive operation is admin-only and throttled.
     return this.searchService.reindexAll();
   }
 

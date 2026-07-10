@@ -1,5 +1,5 @@
-import type { ReactNode } from 'react';
-import { SectionCard } from './SectionCard';
+import type { ReactNode } from "react";
+import { SectionCard } from "./SectionCard";
 
 type FilterCardProps = {
   children: ReactNode;
@@ -12,15 +12,16 @@ type FilterCardProps = {
 export function FilterCard({
   children,
   footer,
-  gridClassName = 'grid gap-4',
+  gridClassName = "grid gap-4",
   className,
   footerClassName,
 }: FilterCardProps) {
   return (
     <SectionCard className={className}>
+      {/* Main filter controls grid. */}
       <div className={gridClassName}>{children}</div>
       {footer ? (
-        <div className={['mt-4', footerClassName].filter(Boolean).join(' ')}>
+        <div className={["mt-4", footerClassName].filter(Boolean).join(" ")}>
           {footer}
         </div>
       ) : null}

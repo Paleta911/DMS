@@ -41,6 +41,7 @@ describe('DocumentsWorkflowService', () => {
   let documentRepo: { findOne: jest.Mock; save: jest.Mock };
   let approvalRepo: { create: jest.Mock; save: jest.Mock; find: jest.Mock };
   let userRepo: { findOne: jest.Mock };
+  let searchService: { enqueueIndexDocument: jest.Mock };
   let service: DocumentsWorkflowService;
 
   beforeEach(() => {
@@ -56,10 +57,14 @@ describe('DocumentsWorkflowService', () => {
     userRepo = {
       findOne: jest.fn(),
     };
+    searchService = {
+      enqueueIndexDocument: jest.fn(),
+    };
     service = new DocumentsWorkflowService(
       documentRepo as any,
       approvalRepo as any,
       userRepo as any,
+      searchService as any,
     );
   });
 
@@ -91,6 +96,31 @@ describe('DocumentsWorkflowService', () => {
     await expect(
       service.submitReview(11, createdBy.id, false),
     ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('reindexa el documento cuando se envia a revision', async () => {
+    documentRepo.findOne
+      .mockResolvedValueOnce({
+        id: 17,
+        createdBy,
+        status: DocumentStatus.Draft,
+        approvals: [
+          { step: ApprovalStep.Reviso, user: reviewer },
+          { step: ApprovalStep.Aprobo, user: approver },
+        ],
+      })
+      .mockResolvedValueOnce({
+        id: 17,
+        status: DocumentStatus.InReview,
+        approvals: [],
+      });
+    approvalRepo.find.mockResolvedValue([
+      { decision: ApprovalDecision.Pending, comentario: null, decidedAt: null },
+    ]);
+
+    await service.submitReview(17, createdBy.id, false);
+
+    expect(searchService.enqueueIndexDocument).toHaveBeenCalledWith(17);
   });
 
   it('rejects a review decision from a different user', async () => {
@@ -137,6 +167,7 @@ describe('DocumentsWorkflowService', () => {
     expect(documentRepo.save).toHaveBeenCalledWith(
       expect.objectContaining({ status: DocumentStatus.Draft }),
     );
+    expect(searchService.enqueueIndexDocument).toHaveBeenCalledWith(13);
   });
 
   it('marks the document as approved when the approver accepts it', async () => {
@@ -167,6 +198,7 @@ describe('DocumentsWorkflowService', () => {
     expect(documentRepo.save).toHaveBeenCalledWith(
       expect.objectContaining({ status: DocumentStatus.Approved }),
     );
+    expect(searchService.enqueueIndexDocument).toHaveBeenCalledWith(14);
   });
 
   it('assigns reviewer and approver users with eligibility checks', async () => {
@@ -204,6 +236,7 @@ describe('DocumentsWorkflowService', () => {
     expect(documentRepo.save).toHaveBeenCalledWith(
       expect.objectContaining({ status: DocumentStatus.Obsolete }),
     );
+    expect(searchService.enqueueIndexDocument).toHaveBeenCalledWith(16);
   });
 
   it('fails when the workflow document does not exist', async () => {

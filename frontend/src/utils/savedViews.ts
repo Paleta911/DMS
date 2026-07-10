@@ -1,3 +1,5 @@
+// Saved views utility: persist and restore filter state from localStorage (scoped per page/context)
+// Tracks both last-used filters and full named views for quick access
 export type SavedView<T> = {
   id: string;
   name: string;
@@ -11,10 +13,12 @@ type SavedViewState<T> = {
   views: SavedView<T>[];
 };
 
+// Build localStorage key with optional scope to avoid collisions between pages
 function buildStorageKey(baseKey: string, scope?: string | null) {
   return scope ? `${baseKey}:${scope}` : baseKey;
 }
 
+// Safety parse: return null if JSON parse fails
 function safeParse<T>(raw: string | null): SavedViewState<T> | null {
   if (!raw) {
     return null;
@@ -31,10 +35,12 @@ export function loadSavedViewState<T>(
   fallback: T,
   scope?: string | null,
 ): SavedViewState<T> {
-  if (typeof window === 'undefined') {
+  if (typeof window === "undefined") {
     return { lastUsed: fallback, views: [] };
   }
-  const parsed = safeParse<T>(window.localStorage.getItem(buildStorageKey(baseKey, scope)));
+  const parsed = safeParse<T>(
+    window.localStorage.getItem(buildStorageKey(baseKey, scope)),
+  );
   return {
     lastUsed: parsed?.lastUsed ?? fallback,
     views: parsed?.views ?? [],
@@ -46,7 +52,7 @@ export function saveSavedViewState<T>(
   state: SavedViewState<T>,
   scope?: string | null,
 ) {
-  if (typeof window === 'undefined') {
+  if (typeof window === "undefined") {
     return;
   }
   window.localStorage.setItem(
@@ -59,7 +65,7 @@ export function createSavedView<T>(name: string, filters: T): SavedView<T> {
   const timestamp = new Date().toISOString();
   return {
     id:
-      typeof crypto !== 'undefined' && 'randomUUID' in crypto
+      typeof crypto !== "undefined" && "randomUUID" in crypto
         ? crypto.randomUUID()
         : `${Date.now()}-${Math.random().toString(16).slice(2)}`,
     name,

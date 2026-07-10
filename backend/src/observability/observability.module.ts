@@ -5,6 +5,7 @@ import { ObservabilityController } from './observability.controller';
 import { BackendMetricsService } from './backend-metrics.service';
 import { PrometheusMetricsService } from './prometheus-metrics.service';
 
+// Observability module wires HTTP/app metrics services and exposes them for cross-module instrumentation.
 @Module({
   controllers: [ObservabilityController],
   providers: [

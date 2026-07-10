@@ -3,6 +3,8 @@ import { DocumentType } from './document-type.entity';
 import { DocumentTypesMutationService } from './document-types-mutation.service';
 import { DocumentTypesQueryService } from './document-types-query.service';
 
+// Document types facade: delegates listing and CRUD operations to specialized services
+// Document types represent classification/taxonomy for documents (e.g., report, memo, policy)
 @Injectable()
 export class DocumentTypesService {
   constructor(
@@ -13,6 +15,7 @@ export class DocumentTypesService {
   findAll(params?: {
     q?: string;
     includeInactive?: boolean;
+    status?: 'active' | 'inactive' | 'all';
     page?: number;
     limit?: number;
   }) {
@@ -29,5 +32,9 @@ export class DocumentTypesService {
 
   async remove(id: number) {
     return this.mutationService.remove(id);
+  }
+
+  async hardDelete(id: number) {
+    return this.mutationService.hardDelete(id);
   }
 }

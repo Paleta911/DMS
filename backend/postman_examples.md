@@ -7,7 +7,7 @@ POST `/auth/login`
 ```json
 {
   "email": "admin@local.com",
-  "password": "Admin123"
+  "password": "<ADMIN_PASSWORD>"
 }
 ```
 
@@ -16,7 +16,7 @@ POST `/auth/bootstrap-admin`
 ```json
 {
   "email": "admin@local.com",
-  "password": "Admin123"
+  "password": "<ADMIN_PASSWORD>"
 }
 ```
 

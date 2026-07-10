@@ -9,6 +9,7 @@ import {
 import { BackendMetricsService } from './backend-metrics.service';
 import { HttpMetricsService } from './http-metrics.service';
 
+// Prometheus exporter that bridges in-memory application metrics into scrapeable text format.
 @Injectable()
 export class PrometheusMetricsService {
   private readonly registry = new Registry();
@@ -107,6 +108,7 @@ export class PrometheusMetricsService {
     private readonly httpMetricsService: HttpMetricsService,
     private readonly backendMetricsService: BackendMetricsService,
   ) {
+    // Include Node runtime defaults under dms_node_* prefix.
     collectDefaultMetrics({ register: this.registry, prefix: 'dms_node_' });
   }
 
@@ -136,6 +138,7 @@ export class PrometheusMetricsService {
   }
 
   private refreshSnapshotGauges() {
+    // Snapshot gauges are refreshed on scrape to keep payload current with latest app state.
     const httpSnapshot = this.httpMetricsService.getSnapshot(20);
     this.httpTotalRequestsGauge.set(httpSnapshot.totals.requests);
     this.httpTotalErrorsGauge.set(httpSnapshot.totals.errors);
@@ -162,10 +165,7 @@ export class PrometheusMetricsService {
       { engine: 'fallback' },
       search.counters.queryFallback,
     );
-    this.searchIndexEventGauge.set(
-      { event: 'queued' },
-      search.counters.queued,
-    );
+    this.searchIndexEventGauge.set({ event: 'queued' }, search.counters.queued);
     this.searchIndexEventGauge.set(
       { event: 'indexed' },
       search.counters.indexed,
@@ -174,10 +174,7 @@ export class PrometheusMetricsService {
       { event: 'failed' },
       search.counters.indexFailures,
     );
-    this.searchIndexEventGauge.set(
-      { event: 'retry' },
-      search.counters.retries,
-    );
+    this.searchIndexEventGauge.set({ event: 'retry' }, search.counters.retries);
     this.searchIndexEventGauge.set(
       { event: 'dropped' },
       search.counters.dropped,

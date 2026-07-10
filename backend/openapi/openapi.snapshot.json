@@ -73,7 +73,19 @@
         "properties": {},
         "type": "object"
       },
+      "UpdateDocumentVisibilityDto": {
+        "properties": {},
+        "type": "object"
+      },
+      "UpdateMeDto": {
+        "properties": {},
+        "type": "object"
+      },
       "UpdateUserAreasDto": {
+        "properties": {},
+        "type": "object"
+      },
+      "VerificationEmailDto": {
         "properties": {},
         "type": "object"
       },
@@ -339,6 +351,34 @@
         ]
       }
     },
+    "/admin/registrations/{id}": {
+      "delete": {
+        "operationId": "RegistrationsController_remove",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin-registrations"
+        ]
+      }
+    },
     "/admin/registrations/{id}/approve": {
       "post": {
         "operationId": "RegistrationsController_approve",
@@ -382,6 +422,34 @@
         ],
         "responses": {
           "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin-registrations"
+        ]
+      }
+    },
+    "/admin/registrations/{id}/permanent": {
+      "delete": {
+        "operationId": "RegistrationsController_removePermanent",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
             "description": ""
           }
         },
@@ -461,6 +529,34 @@
         ]
       }
     },
+    "/admin/registrations/{id}/restore": {
+      "post": {
+        "operationId": "RegistrationsController_restore",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin-registrations"
+        ]
+      }
+    },
     "/area-codes": {
       "get": {
         "operationId": "AreaCodesController_findAll",
@@ -502,6 +598,20 @@
             "bearer": []
           }
         ],
+        "tags": [
+          "area-codes"
+        ]
+      }
+    },
+    "/area-codes/public": {
+      "get": {
+        "operationId": "AreaCodesController_findPublicList",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
         "tags": [
           "area-codes"
         ]
@@ -556,6 +666,34 @@
           },
           "required": true
         },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "area-codes"
+        ]
+      }
+    },
+    "/area-codes/{id}/permanent": {
+      "delete": {
+        "operationId": "AreaCodesController_hardDelete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": ""
@@ -642,7 +780,7 @@
                     "type": "string"
                   },
                   "password": {
-                    "example": "Admin123",
+                    "example": "<ADMIN_PASSWORD>",
                     "type": "string"
                   }
                 },
@@ -750,6 +888,54 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/RegisterDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/resend-verification-code": {
+      "post": {
+        "operationId": "AuthController_resendVerificationCode",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerificationEmailDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/verification-status": {
+      "post": {
+        "operationId": "AuthController_getVerificationStatus",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerificationEmailDto"
               }
             }
           },
@@ -899,6 +1085,34 @@
         ]
       }
     },
+    "/categories/{id}/permanent": {
+      "delete": {
+        "operationId": "CategoriesController_hardDelete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "categories"
+        ]
+      }
+    },
     "/document-types": {
       "get": {
         "operationId": "DocumentTypesController_findAll",
@@ -1009,6 +1223,80 @@
         ]
       }
     },
+    "/document-types/{id}/permanent": {
+      "delete": {
+        "operationId": "DocumentTypesController_hardDelete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "document-types"
+        ]
+      }
+    },
+    "/document-visibility": {
+      "get": {
+        "operationId": "DocumentVisibilityController_getPolicy",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "document-visibility"
+        ]
+      },
+      "patch": {
+        "operationId": "DocumentVisibilityController_updatePolicy",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateDocumentVisibilityDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "document-visibility"
+        ]
+      }
+    },
     "/documents": {
       "get": {
         "operationId": "DocumentsController_list",
@@ -1083,6 +1371,10 @@
                     "example": 1,
                     "type": "number"
                   },
+                  "documentId": {
+                    "example": 101,
+                    "type": "number"
+                  },
                   "documentTypeCode": {
                     "example": "PRO",
                     "type": "string"
@@ -1090,6 +1382,10 @@
                   "file": {
                     "format": "binary",
                     "type": "string"
+                  },
+                  "isInternal": {
+                    "example": true,
+                    "type": "boolean"
                   },
                   "nombreDocumento": {
                     "example": "Procedimiento Seguridad",
@@ -1680,6 +1976,33 @@
         "tags": [
           "users"
         ]
+      },
+      "patch": {
+        "operationId": "UsersController_updateMe",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateMeDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "users"
+        ]
       }
     },
     "/users/search": {
@@ -1697,6 +2020,38 @@
           {
             "in": "query",
             "name": "limit",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "recent",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "role",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "areaState",
             "required": true,
             "schema": {
               "type": "string"
@@ -1771,6 +2126,62 @@
         },
         "responses": {
           "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "users"
+        ]
+      }
+    },
+    "/users/{id}/permanent": {
+      "delete": {
+        "operationId": "UsersController_permanentlyDeleteUser",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "users"
+        ]
+      }
+    },
+    "/users/{id}/restore": {
+      "post": {
+        "operationId": "UsersController_restoreDeletedUser",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
             "description": ""
           }
         },

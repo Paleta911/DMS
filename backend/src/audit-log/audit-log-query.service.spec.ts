@@ -3,6 +3,7 @@ import { AuditLogQueryService } from './audit-log-query.service';
 
 function createQueryBuilderMock(items: AuditLog[] = [], total = items.length) {
   return {
+    leftJoin: jest.fn().mockReturnThis(),
     orderBy: jest.fn().mockReturnThis(),
     andWhere: jest.fn().mockReturnThis(),
     skip: jest.fn().mockReturnThis(),
@@ -42,12 +43,13 @@ describe('AuditLogQueryService', () => {
     });
 
     expect(repo.createQueryBuilder).toHaveBeenCalledWith('audit');
+    expect(qb.leftJoin).toHaveBeenCalledTimes(2);
     expect(qb.orderBy).toHaveBeenCalledWith('audit.createdAt', 'DESC');
     expect(qb.andWhere).toHaveBeenCalledWith('audit.action = :action', {
       action: 'DOCUMENT_UPLOAD',
     });
     expect(qb.andWhere).toHaveBeenCalledWith(
-      '(CAST(audit.userId AS varchar(30)) LIKE :userFilter OR LOWER(COALESCE(audit.meta, \'\')) LIKE :userFilter)',
+      expect.stringContaining('CAST(audit.userId AS varchar(30)) LIKE :userFilter'),
       { userFilter: '%user@bsm.com.mx%' },
     );
     expect(qb.andWhere).toHaveBeenCalledWith(

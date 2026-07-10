@@ -10,6 +10,8 @@ import { PermissionKey } from '../../users/permissions';
 import { UsersService } from '../../users/users.service';
 import { AuditLogService } from '../../audit-log/audit-log.service';
 
+// Fine-grained permission guard: checks if user has required permission(s) from @Permissions() decorator
+// Enforces field-level authorization; logs denials to audit trail for compliance
 @Injectable()
 export class PermissionsGuard implements CanActivate {
   constructor(
@@ -19,6 +21,7 @@ export class PermissionsGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext) {
+    // Extract required permissions from @Permissions() decorator metadata
     const required = this.reflector.getAllAndOverride<PermissionKey[]>(
       PERMISSIONS_KEY,
       [context.getHandler(), context.getClass()],

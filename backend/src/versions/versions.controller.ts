@@ -23,9 +23,9 @@ import { UserRole } from '../users/user-role.enum';
 import { Permissions } from '../auth/permissions.decorator';
 import { PermissionKey } from '../users/permissions';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
-import { UserScopeService } from '../users/user-scope.service';
 import { buildApiErrorResponse } from '../common/http-error.utils';
 import { UPLOAD_DIR } from '../documents/document-upload.policy';
+import { DocumentVisibilityService } from '../document-visibility/document-visibility.service';
 
 @ApiTags('versions')
 @Controller('versions')
@@ -33,7 +33,7 @@ export class VersionsController {
   constructor(
     private readonly versionsService: VersionsService,
     private readonly auditLogService: AuditLogService,
-    private readonly userScopeService: UserScopeService,
+    private readonly documentVisibilityService: DocumentVisibilityService,
   ) {}
 
   @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -44,16 +44,14 @@ export class VersionsController {
     @Body() body: CreateVersionDto,
     @Req() req: Request & { user?: { id: number; role: UserRole } },
   ) {
-    await this.userScopeService.assertAreaAccess({
-      actor: req.user ?? { id: 0, role: UserRole.User },
-      areaCode: await this.versionsService.getDocumentAreaCode(body.documentId),
-      requireAreaCode: true,
-      resourceType: 'version',
-      resourceId: body.documentId,
-      endpoint: 'POST /versions',
-      ip: req.ip,
-      userAgent: req.headers['user-agent'] as string | undefined,
-    });
+    const isAdmin = req.user?.role === UserRole.Admin;
+    const documentStatus = await this.versionsService.findDocumentStatus(
+      body.documentId,
+    );
+    await this.documentVisibilityService.assertDocumentVisible(
+      documentStatus,
+      isAdmin,
+    );
 
     return this.versionsService.create(
       {
@@ -74,22 +72,15 @@ export class VersionsController {
     @Param('documentId') documentId: string,
     @Req() req: Request & { user?: { id: number; role: UserRole } },
   ) {
-    const documentIdNumber = Number(documentId);
-    if (req.user) {
-      await this.userScopeService.assertAreaAccess({
-        actor: req.user,
-        areaCode: await this.versionsService.getDocumentAreaCode(documentIdNumber),
-        requireAreaCode: true,
-        resourceType: 'version',
-        resourceId: documentIdNumber,
-        endpoint: 'GET /versions/:documentId',
-        ip: req.ip,
-        userAgent: req.headers['user-agent'] as string | undefined,
-        requiredMessage: 'Sin acceso a este documento',
-        deniedMessage: 'Sin acceso a este documento',
-      });
-    }
-    return this.versionsService.findByDocument(documentIdNumber);
+    const isAdmin = req.user?.role === UserRole.Admin;
+    const documentStatus = await this.versionsService.findDocumentStatus(
+      Number(documentId),
+    );
+    await this.documentVisibilityService.assertDocumentVisible(
+      documentStatus,
+      isAdmin,
+    );
+    return this.versionsService.findByDocument(Number(documentId));
   }
 
   @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -103,20 +94,12 @@ export class VersionsController {
     @Req() req: Request & { user?: { id: number; role: UserRole } },
   ) {
     const version = await this.versionsService.findById(Number(id));
-    const user = req.user;
-    if (user) {
-      await this.userScopeService.assertAreaAccess({
-        actor: user,
-        areaCode: version.document?.areaCode?.code ?? null,
-        requireAreaCode: true,
-        resourceType: 'version',
-        resourceId: version.id,
-        endpoint: 'GET /versions/:id/download',
-        ip: req.ip,
-        userAgent: req.headers['user-agent'] as string | undefined,
-        requiredMessage: 'Sin acceso a este documento',
-        deniedMessage: 'Sin acceso a este documento',
-      });
+    const isAdmin = req.user?.role === UserRole.Admin;
+    if (version.document?.status) {
+      await this.documentVisibilityService.assertDocumentVisible(
+        version.document.status,
+        isAdmin,
+      );
     }
     const filePath = join(UPLOAD_DIR, version.storedName);
     if (!existsSync(filePath)) {

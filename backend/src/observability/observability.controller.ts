@@ -4,6 +4,7 @@ import { HttpMetricsService } from './http-metrics.service';
 import { BackendMetricsService } from './backend-metrics.service';
 import { PrometheusMetricsService } from './prometheus-metrics.service';
 
+// Metrics controller exposing JSON snapshot and Prometheus text format endpoints.
 @Controller('metrics')
 export class ObservabilityController {
   constructor(
@@ -15,11 +16,14 @@ export class ObservabilityController {
   @Get()
   @SkipThrottle()
   getHttpMetrics(@Query('maxRoutes') maxRoutes?: string) {
+    // Clamp maxRoutes to avoid oversized payloads.
     const parsed =
       typeof maxRoutes === 'string' && maxRoutes.trim().length > 0
         ? Number(maxRoutes)
         : undefined;
-    const limit = Number.isFinite(parsed) ? Math.min(Math.max(Number(parsed), 1), 200) : 30;
+    const limit = Number.isFinite(parsed)
+      ? Math.min(Math.max(Number(parsed), 1), 200)
+      : 30;
     return {
       ...this.httpMetricsService.getSnapshot(limit),
       backend: this.backendMetricsService.getSnapshot(),
@@ -30,6 +34,7 @@ export class ObservabilityController {
   @Header('Content-Type', 'text/plain; version=0.0.4; charset=utf-8')
   @SkipThrottle()
   async getPrometheusMetrics() {
+    // Delegates full scraping payload generation to PrometheusMetricsService.
     return this.prometheusMetricsService.getMetricsText();
   }
 }

@@ -1,5 +1,7 @@
-import type { ReactNode } from 'react';
+import type { ReactNode } from "react";
 
+// Lightweight presentational table used by admin/operational pages.
+// Handles empty-state rendering and keeps a consistent visual shell.
 export function DataTable({
   headers,
   rows,
@@ -22,7 +24,10 @@ export function DataTable({
         <tbody>
           {rows.length === 0 ? (
             <tr>
-              <td colSpan={headers.length} className="px-4 py-6 text-brand-textMuted">
+              <td
+                colSpan={headers.length}
+                className="px-4 py-6 text-brand-textMuted"
+              >
                 Sin registros
               </td>
             </tr>

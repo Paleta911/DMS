@@ -1,4 +1,4 @@
-// src/categories/categories.service.ts
+// Categories facade delegates document classification queries and mutations to specialized services
 
 import { Injectable } from '@nestjs/common';
 import { CategoriesMutationService } from './categories-mutation.service';
@@ -6,6 +6,7 @@ import { CategoriesQueryService } from './categories-query.service';
 
 @Injectable()
 export class CategoriesService {
+  // Facade pattern: thin layer orchestrating query and mutation services for categories
   constructor(
     private readonly queryService: CategoriesQueryService,
     private readonly mutationService: CategoriesMutationService,
@@ -18,6 +19,7 @@ export class CategoriesService {
   findAll(params?: {
     q?: string;
     includeInactive?: boolean;
+    status?: 'active' | 'inactive' | 'all';
     page?: number;
     limit?: number;
   }) {
@@ -30,5 +32,9 @@ export class CategoriesService {
 
   async remove(id: number) {
     return this.mutationService.remove(id);
+  }
+
+  async hardDelete(id: number) {
+    return this.mutationService.hardDelete(id);
   }
 }

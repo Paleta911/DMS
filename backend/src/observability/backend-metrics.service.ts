@@ -47,6 +47,7 @@ export class BackendMetricsService {
   };
 
   getSnapshot() {
+    // Snapshot is intentionally plain JSON for /health and /metrics style endpoints.
     return {
       startedAt: new Date(this.startedAt).toISOString(),
       uptimeSeconds: Math.floor((Date.now() - this.startedAt) / 1000),
@@ -105,6 +106,7 @@ export class BackendMetricsService {
   }
 
   recordSearchQuery(engine: SearchEngine) {
+    // Split counters by engine to track fallback pressure over time.
     if (engine === 'elastic') {
       this.search.counters.queryElastic += 1;
       return;
@@ -141,6 +143,7 @@ export class BackendMetricsService {
       return;
     }
     if (status === 'down') {
+      // Count transitions to down (not every repeated failure) for cleaner alerting.
       this.search.lastElasticDownAt = now;
       this.search.counters.elasticDownEvents += 1;
     }
