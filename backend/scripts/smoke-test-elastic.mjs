@@ -26,7 +26,14 @@ loadEnvFromFile();
 const esNode = process.env.ES_NODE ?? 'http://127.0.0.1:9200';
 const baseUrl = process.env.SMOKE_BASE_URL ?? 'http://127.0.0.1:3000';
 const adminEmail = process.env.SMOKE_ADMIN_EMAIL ?? 'admin@local.com';
-const adminPassword = process.env.SMOKE_ADMIN_PASSWORD ?? 'Admin123';
+const adminPassword =
+  process.env.SMOKE_ADMIN_PASSWORD ??
+  `LocalSmoke${process.pid}${Date.now()}Aa1`;
+const bootstrapToken = process.env.BOOTSTRAP_TOKEN;
+
+function bootstrapHeaders() {
+  return bootstrapToken ? { 'x-bootstrap-token': bootstrapToken } : {};
+}
 
 function assert(condition, message) {
   if (!condition) {
@@ -307,6 +314,7 @@ async function main() {
 
     const bootstrap = await requestJson(`${baseUrl}/auth/bootstrap-admin`, {
       method: 'POST',
+      headers: bootstrapHeaders(),
       body: JSON.stringify({ email: adminEmail, password: adminPassword }),
     });
     if (

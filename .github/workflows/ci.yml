@@ -49,16 +49,19 @@ jobs:
           jwt_secret="ci_jwt_$(openssl rand -hex 32)"
           jwt_refresh_secret="ci_refresh_$(openssl rand -hex 32)"
           bootstrap_token="ci_bootstrap_$(openssl rand -hex 32)"
+          smoke_admin_password="CiSmoke$(openssl rand -hex 16)Aa1"
           printf '::add-mask::%s\n' "$sql_password"
           printf '::add-mask::%s\n' "$jwt_secret"
           printf '::add-mask::%s\n' "$jwt_refresh_secret"
           printf '::add-mask::%s\n' "$bootstrap_token"
+          printf '::add-mask::%s\n' "$smoke_admin_password"
           {
             echo "DB_PASS=${sql_password}"
             echo "MSSQL_SA_PASSWORD=${sql_password}"
             echo "JWT_SECRET=${jwt_secret}"
             echo "JWT_REFRESH_SECRET=${jwt_refresh_secret}"
             echo "BOOTSTRAP_TOKEN=${bootstrap_token}"
+            echo "SMOKE_ADMIN_PASSWORD=${smoke_admin_password}"
           } >> "$GITHUB_ENV"
 
       - name: Install backend dependencies
