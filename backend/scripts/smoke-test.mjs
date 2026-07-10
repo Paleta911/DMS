@@ -153,6 +153,25 @@ function runBuildOrThrow() {
 
 function killPort(port) {
   // Limpia procesos residuales para evitar colisiones en arranques repetidos locales.
+  if (process.platform !== 'win32') {
+    const fuser = spawnSync('fuser', ['-k', `${port}/tcp`], {
+      stdio: 'ignore',
+    });
+    if (fuser.status === 0) {
+      return;
+    }
+
+    const lsof = spawnSync('lsof', ['-ti', `tcp:${port}`], {
+      encoding: 'utf8',
+    });
+    if (lsof.status === 0 && lsof.stdout) {
+      for (const pid of lsof.stdout.split(/\s+/).filter(Boolean)) {
+        spawnSync('kill', ['-9', pid], { stdio: 'ignore' });
+      }
+    }
+    return;
+  }
+
   const netstat = spawnSync('netstat', ['-aon'], {
     encoding: 'utf8',
     shell: true,
