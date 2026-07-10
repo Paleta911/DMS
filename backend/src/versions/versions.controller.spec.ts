@@ -16,6 +16,8 @@ import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { PermissionKey } from '../users/permissions';
 import { PERMISSIONS_KEY } from '../auth/permissions.decorator';
 import { UserRole } from '../users/user-role.enum';
+import { DocumentStatus } from '../documents/document-status.enum';
+import { DocumentVisibilityService } from '../document-visibility/document-visibility.service';
 
 describe('VersionsController', () => {
   let controller: VersionsController;
@@ -24,8 +26,12 @@ describe('VersionsController', () => {
     create: jest.fn(),
     findByDocument: jest.fn(),
     findById: jest.fn(),
+    findDocumentStatus: jest.fn(),
   };
   const auditLogService = { log: jest.fn() };
+  const documentVisibilityService = {
+    assertDocumentVisible: jest.fn(),
+  };
 
   beforeEach(async () => {
     const builder = Test.createTestingModule({
@@ -33,6 +39,10 @@ describe('VersionsController', () => {
       providers: [
         { provide: VersionsService, useValue: versionsService },
         { provide: AuditLogService, useValue: auditLogService },
+        {
+          provide: DocumentVisibilityService,
+          useValue: documentVisibilityService,
+        },
       ],
     })
       .overrideGuard(JwtAuthGuard)
@@ -44,6 +54,10 @@ describe('VersionsController', () => {
 
     controller = module.get<VersionsController>(VersionsController);
     jest.clearAllMocks();
+    versionsService.findDocumentStatus.mockResolvedValue(DocumentStatus.Draft);
+    documentVisibilityService.assertDocumentVisible.mockResolvedValue(
+      undefined,
+    );
   });
 
   it('should be defined', () => {
@@ -85,6 +99,10 @@ describe('VersionsController', () => {
       comentario: 'Nueva version',
       uploadedById: 7,
     });
+    expect(documentVisibilityService.assertDocumentVisible).toHaveBeenCalledWith(
+      DocumentStatus.Draft,
+      false,
+    );
     expect(result).toEqual({ id: 10, documentId: 42 });
   });
 
@@ -108,6 +126,11 @@ describe('VersionsController', () => {
 
     const result = await controller.findByDocument('42', req);
 
+    expect(versionsService.findDocumentStatus).toHaveBeenCalledWith(42);
+    expect(documentVisibilityService.assertDocumentVisible).toHaveBeenCalledWith(
+      DocumentStatus.Draft,
+      false,
+    );
     expect(versionsService.findByDocument).toHaveBeenCalledWith(42);
     expect(result).toEqual([{ id: 1 }]);
   });

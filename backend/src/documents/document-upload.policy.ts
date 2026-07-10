@@ -48,7 +48,9 @@ export const ALLOWED_MIME_TYPES = parseCsvSet(
 );
 
 export function sanitizeUploadOriginalName(originalName: string) {
-  const normalized = basename(String(originalName ?? '').normalize('NFKC')).trim();
+  const normalized = basename(
+    String(originalName ?? '').normalize('NFKC').replace(/\\/g, '/'),
+  ).trim();
   if (!normalized) {
     throw new BadRequestException('Nombre de archivo inválido');
   }
