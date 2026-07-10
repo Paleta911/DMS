@@ -1,6 +1,6 @@
 # DMS Backend
 
-Backend NestJS del sistema DMS SIG. Usa SQL Server para persistencia transaccional, Elasticsearch para busqueda optimizada y JWT para autenticacion.
+Backend NestJS del sistema DMS SIG. Usa SQL Server para persistencia transaccional, Elasticsearch para búsqueda optimizada y JWT para autenticación.
 
 ## Stack
 - NestJS
@@ -11,12 +11,12 @@ Backend NestJS del sistema DMS SIG. Usa SQL Server para persistencia transaccion
 - Nodemailer (`EMAIL_MODE=console|smtp`)
 
 ## Requisitos
-- Node.js 18+
+- Node.js 22+
 - npm 10+
 - SQL Server disponible en `DB_HOST:DB_PORT`
-- Elasticsearch opcional para smoke estricto y busqueda real
+- Elasticsearch opcional para smoke estricto y búsqueda real
 
-## Configuracion rapida
+## Configuración rápida
 
 En PowerShell:
 
@@ -25,7 +25,7 @@ cd C:\Users\alexi\DMS\backend
 Copy-Item .env.example .env
 ```
 
-Variables criticas:
+Variables críticas:
 - `APP_RUNTIME_ROLE`
 - `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASS`, `DB_NAME`
 - `JWT_SECRET`, `JWT_EXPIRES_IN`
@@ -44,8 +44,8 @@ Variables criticas:
 Notas:
 - `DB_SYNC=false` por defecto. El esquema se mueve por migraciones.
 - `EMAIL_MODE=console` es el modo recomendado en desarrollo.
-- En produccion, `EMAIL_MODE` debe ser `smtp` y requiere `SMTP_HOST` + `SMTP_FROM`.
-- `SEARCH_MODE=auto` usa fallback si Elasticsearch no esta listo.
+- En producción, `EMAIL_MODE` debe ser `smtp` y requiere `SMTP_HOST` + `SMTP_FROM`.
+- `SEARCH_MODE=auto` usa fallback si Elasticsearch no está listo.
 - `APP_RUNTIME_ROLE=both` sirve para desarrollo; en despliegue se recomienda `web` para la API y `worker` para el proceso de indexacion.
 - `FEATURE_FLAGS` controla capacidades opcionales como analitica admin, notificaciones, vistas guardadas, exportaciones avanzadas, modo oscuro e i18n.
 
@@ -157,7 +157,7 @@ En Windows local necesitas tener instalados:
 - `Tesseract OCR`
 - `Poppler` (`pdftoppm`)
 
-Si faltan dependencias, la carga del archivo sigue funcionando, pero el PDF escaneado no quedara indexable por contenido. La imagen Docker de produccion ya incluye OCR.
+Si faltan dependencias, la carga del archivo sigue funcionando, pero el PDF escaneado no quedará indexable por contenido. La imagen Docker de producción ya incluye OCR.
 
 Para reprocesar documentos ya cargados despues de habilitar OCR:
 
@@ -198,7 +198,7 @@ Notas:
 - `errors` solo aparece cuando hay detalle adicional, por ejemplo validación.
 - `requestId` coincide con el header `x-request-id`.
 
-## Validacion
+## Validación
 
 ### Unit tests
 ```powershell
@@ -234,12 +234,12 @@ omite esta verificacion automaticamente. Para volverla obligatoria:
 $env:CI_LOCAL_STRICT_OCR='true'; npm run test:ci:local:strict
 ```
 
-### Validacion local completa
+### Validación local completa
 ```powershell
 npm run test:ci:local
 ```
 
-### Validacion local estricta
+### Validación local estricta
 ```powershell
 npm run test:ci:local:strict
 ```
@@ -368,7 +368,7 @@ El workflow en `.github/workflows/ci.yml`:
 - `OBSERVABILITY.md` resume el stack externo con Prometheus, Loki y Grafana.
 - `OBSERVABILITY.md` incluye alerts y dashboards de operaciones/plataforma.
 - `FILE_STORAGE_BACKUP.md` describe el ciclo de respaldo y restauracion de archivos.
-- `SECURITY_PRODUCTION.md` resume el hardening final para produccion.
+- `SECURITY_PRODUCTION.md` resume el hardening final para producción.
 
 ## Troubleshooting
 
@@ -383,11 +383,11 @@ El workflow en `.github/workflows/ci.yml`:
 - Verifica `ES_NODE`.
 - Si usas Docker: `npm run infra:up:search`.
 - Espera readiness con `npm run infra:wait:search`.
-- Si quieres busqueda real, ejecuta `npm run test:smoke:elastic`.
+- Si quieres búsqueda real, ejecuta `npm run test:smoke:elastic`.
 
 ### `JWT_SECRET` invalido o faltante
 - Define `JWT_SECRET` explicito en `.env`.
-- En produccion no se permite fallback inseguro.
+- En producción no se permite fallback inseguro.
 
 ### Registro de correo en desarrollo
 - Usa `EMAIL_MODE=console`.

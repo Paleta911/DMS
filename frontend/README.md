@@ -10,7 +10,7 @@ Frontend React/Vite del sistema DMS SIG.
 - React Query
 - React Router
 
-## Configuracion
+## Configuración
 
 En PowerShell:
 
@@ -32,10 +32,10 @@ npm install
 npm run dev
 ```
 
-Aplicacion:
+Aplicación:
 - `http://localhost:5173`
 
-## Validacion
+## Validación
 
 ```powershell
 npm run build
@@ -78,7 +78,7 @@ npm run test
 - Verifica `VITE_API_URL`.
 - Revisa que el backend responda `http://localhost:3000/health`.
 
-### Redireccion a `/forbidden`
+### Redirección a `/forbidden`
 - El backend esta devolviendo `403`.
 - Revisa permisos, rol, estado del usuario y areas asignadas.
 

@@ -1,6 +1,6 @@
-# INSTALACION
+# Instalación Local
 
-Guia para levantar DMS SIG en entorno local.
+Guía para levantar DMS SIG en un entorno local de desarrollo.
 
 ## Requisitos
 
@@ -12,7 +12,7 @@ Guia para levantar DMS SIG en entorno local.
 
 Opcional para OCR:
 
-- Tesseract
+- Tesseract OCR
 - Poppler (`pdftoppm`)
 
 ## 1. Clonar el Repositorio
@@ -22,7 +22,7 @@ git clone https://github.com/Paleta911/DMS.git
 cd DMS
 ```
 
-Si ya tienes el repo local:
+Si ya tienes el repositorio local:
 
 ```powershell
 git switch main
@@ -38,7 +38,7 @@ cd backend
 Copy-Item .env.example .env
 ```
 
-Edita `backend/.env` y reemplaza todos los valores `REPLACE_WITH_...` por valores locales seguros.
+Edita `backend/.env` y reemplaza los valores `REPLACE_WITH_...` por valores locales seguros.
 
 Frontend:
 
@@ -49,18 +49,18 @@ Copy-Item .env.example .env
 
 No subas archivos `.env` reales al repositorio.
 
-## 3. Levantar Backend
+## 3. Levantar el Backend
 
 Desde `backend/`:
 
 ```powershell
-npm install
+npm ci
 npm run infra:up
 npm run dev:prepare
 npm run start:dev
 ```
 
-Esto levanta o prepara:
+Esto prepara:
 
 - SQL Server
 - Elasticsearch
@@ -68,7 +68,7 @@ Esto levanta o prepara:
 - Migraciones
 - API NestJS
 
-URLs utiles:
+URLs útiles:
 
 - Health: `http://localhost:3000/health`
 - Swagger: `http://localhost:3000/docs`
@@ -76,17 +76,17 @@ URLs utiles:
 - Elasticsearch: `http://localhost:9200`
 - Kibana: `http://localhost:5601`
 
-## 4. Levantar Frontend
+## 4. Levantar el Frontend
 
-En otra terminal:
+En otra terminal, desde la raíz del repositorio:
 
 ```powershell
 cd frontend
-npm install
+npm ci
 npm run dev
 ```
 
-URL:
+URL local:
 
 - Frontend: `http://localhost:5173`
 
@@ -109,7 +109,7 @@ npm run build
 npm run test
 ```
 
-## 6. Apagar Infraestructura Local
+## 6. Apagar la Infraestructura Local
 
 Desde `backend/`:
 
@@ -117,13 +117,11 @@ Desde `backend/`:
 npm run infra:down
 ```
 
-## 7. Deploy
+## 7. Despliegue
 
-La configuracion de despliegue vive en `deploy/`.
+La configuración de despliegue vive en `deploy/`.
 
-Documentacion:
-
-- [deploy/README.md](./deploy/README.md)
+- [Documentación de despliegue](./deploy/README.md)
 
 Archivos principales:
 
@@ -153,7 +151,7 @@ npm run infra:up:search
 npm run infra:wait:search
 ```
 
-Si falla autenticacion o bootstrap:
+Si falla autenticación o bootstrap:
 
 - Revisa `JWT_SECRET`, `JWT_REFRESH_SECRET` y `BOOTSTRAP_TOKEN`.
 - Verifica que el `.env` local exista y no tenga placeholders.
