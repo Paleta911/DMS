@@ -18,12 +18,14 @@ jobs:
       NODE_ENV: development
       DB_HOST: 127.0.0.1
       DB_PORT: 1433
+      DB_PORT_EXTERNAL: 1433
       DB_USER: sa
       DB_NAME: DMS
       DB_ENCRYPT: false
       DB_TRUST_CERT: true
       JWT_EXPIRES_IN: 1d
       ES_NODE: http://127.0.0.1:9200
+      ES_PORT_EXTERNAL: 9200
       EMAIL_MODE: console
       LOG_FORMAT: json
 
@@ -44,12 +46,19 @@ jobs:
         shell: bash
         run: |
           sql_password="Ci$(openssl rand -hex 16)!Aa1"
+          jwt_secret="ci_jwt_$(openssl rand -hex 32)"
+          jwt_refresh_secret="ci_refresh_$(openssl rand -hex 32)"
+          bootstrap_token="ci_bootstrap_$(openssl rand -hex 32)"
+          printf '::add-mask::%s\n' "$sql_password"
+          printf '::add-mask::%s\n' "$jwt_secret"
+          printf '::add-mask::%s\n' "$jwt_refresh_secret"
+          printf '::add-mask::%s\n' "$bootstrap_token"
           {
             echo "DB_PASS=${sql_password}"
             echo "MSSQL_SA_PASSWORD=${sql_password}"
-            echo "JWT_SECRET=ci_jwt_$(openssl rand -hex 32)"
-            echo "JWT_REFRESH_SECRET=ci_refresh_$(openssl rand -hex 32)"
-            echo "BOOTSTRAP_TOKEN=ci_bootstrap_$(openssl rand -hex 32)"
+            echo "JWT_SECRET=${jwt_secret}"
+            echo "JWT_REFRESH_SECRET=${jwt_refresh_secret}"
+            echo "BOOTSTRAP_TOKEN=${bootstrap_token}"
           } >> "$GITHUB_ENV"
 
       - name: Install backend dependencies
@@ -104,7 +113,9 @@ jobs:
       - name: Collect Docker compose logs on failure
         if: failure()
         working-directory: backend
-        run: docker compose logs --tail=300 > tmp/docker-compose-ci.log
+        run: |
+          mkdir -p tmp
+          docker compose logs --tail=300 > tmp/docker-compose-ci.log
 
       - name: Upload Docker compose logs
         if: failure() && hashFiles('backend/tmp/docker-compose-ci.log') != ''
