@@ -440,6 +440,9 @@ async function main() {
       activeDocumentTypes = [createdDocumentType.data];
     }
     const documentTypeCode = activeDocumentTypes[0].code;
+    const baseConsecutivo = (Date.now() % 800000) + 100000;
+    const primaryConsecutivo = baseConsecutivo;
+    const secondaryConsecutivo = baseConsecutivo + 1;
 
     const buildAdminUserPayload = (email, password, label) => ({
       nombre: `Smoke ${label}`,
@@ -530,8 +533,10 @@ async function main() {
       form.append('nombreDocumento', docName);
       form.append('comentario', 'Smoke test');
       form.append('categoryId', String(categoryId));
+      form.append('isInternal', 'true');
       form.append('documentTypeCode', documentTypeCode);
       form.append('areaCode', primaryAreaCode);
+      form.append('consecutivo', String(primaryConsecutivo));
       return form;
     };
 
@@ -568,8 +573,10 @@ async function main() {
       form.append('nombreDocumento', docNameSecondary);
       form.append('comentario', 'Admin upload secondary');
       form.append('categoryId', String(categoryId));
+      form.append('isInternal', 'true');
       form.append('documentTypeCode', documentTypeCode);
       form.append('areaCode', secondaryAreaCode);
+      form.append('consecutivo', String(secondaryConsecutivo));
       return form;
     };
 
@@ -686,6 +693,8 @@ async function main() {
       formNewVersion.append('nombreDocumento', `Doc-V2-${Date.now()}`);
       formNewVersion.append('comentario', 'New version');
       formNewVersion.append('categoryId', String(categoryId));
+      formNewVersion.append('isInternal', 'true');
+      formNewVersion.append('documentId', String(documentId));
       formNewVersion.append('documentTypeCode', documentTypeCode);
       formNewVersion.append('areaCode', primaryAreaCode);
       formNewVersion.append('consecutivo', String(consecutivo));
