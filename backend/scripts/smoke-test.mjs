@@ -558,7 +558,7 @@ async function main() {
     assert(documentId && versionId, '[documents:upload] missing ids');
     assert(
       typeof codigo === 'string' &&
-        codigo.startsWith(`${documentTypeCode}-${primaryAreaCode}-`),
+        codigo.startsWith(`CEP-${documentTypeCode}-${primaryAreaCode}-`),
       `[documents:upload] invalid codigo ${codigo}`,
     );
 
